@@ -16,6 +16,10 @@ class UpdateRestartSkipComposer:
       for a restart/control-like record, replace that generated block with
       a manual redesign comment and CONTINUE.
     - Remove SQLCODE checks after skipped SQL because no SQL was executed.
+    - If generated output removed OBTAIN CALC SELECT for a restart/control
+      record, replace that direct-update comment with manual redesign comment
+      because restart/control records cannot use generic direct UPDATE logic
+      without proper Sheet Mapping and DCLGEN metadata.
     """
 
     CONVERTED_FOR_PATTERN = re.compile(
@@ -29,6 +33,12 @@ class UpdateRestartSkipComposer:
         r"^\s*\*?\s*DB2:\s*"
         r"(?P<operation>SELECT|INSERT|UPDATE|DELETE|STORE|MODIFY|OBTAIN\s+CALC)"
         r"\s+conversion\s+skipped\s+for\s+(?P<record>[A-Z0-9-]+)\.?\s*$",
+        flags=re.IGNORECASE,
+    )
+
+    REMOVED_OBTAIN_CALC_PATTERN = re.compile(
+        r"^\s*\*?\s*DB2:\s*Removed\s+OBTAIN\s+CALC\s+SELECT\s+for\s+"
+        r"(?P<record>[A-Z0-9-]+)\.?\s*$",
         flags=re.IGNORECASE,
     )
 
@@ -97,8 +107,39 @@ class UpdateRestartSkipComposer:
         while index < len(lines):
             logical = self._logical(lines[index])
 
+            removed_obtain_match = self.REMOVED_OBTAIN_CALC_PATTERN.match(
+                logical
+            )
             skipped_match = self.SKIPPED_FOR_PATTERN.match(logical)
             converted_match = self.CONVERTED_FOR_PATTERN.match(logical)
+
+            if removed_obtain_match:
+                record_name = str(
+                    removed_obtain_match.group("record") or ""
+                ).upper()
+
+                if not self._looks_like_restart_or_control(record_name):
+                    output.append(lines[index])
+                    index += 1
+                    continue
+
+                block_end = self._removed_obtain_calc_block_end(
+                    lines=lines,
+                    start_index=index,
+                )
+
+                output.extend(self._replacement_block(record_name))
+
+                index = self._skip_following_sqlcode_blocks(
+                    lines=lines,
+                    start_index=block_end,
+                )
+
+                self.messages.append(
+                    "Update restart/control skip: restart/control record "
+                    f"{record_name} requires manual DB2 redesign."
+                )
+                continue
 
             if skipped_match:
                 record_name = str(skipped_match.group("record") or "").upper()
@@ -114,12 +155,15 @@ class UpdateRestartSkipComposer:
                 )
 
                 output.extend(self._replacement_block(record_name))
+
                 index = self._skip_following_sqlcode_blocks(
                     lines=lines,
                     start_index=block_end,
                 )
+
                 self.messages.append(
-                    f"Update restart/control skip: restart/control record {record_name} requires manual DB2 redesign."
+                    "Update restart/control skip: restart/control record "
+                    f"{record_name} requires manual DB2 redesign."
                 )
                 continue
 
@@ -144,12 +188,15 @@ class UpdateRestartSkipComposer:
                     continue
 
                 output.extend(self._replacement_block(record_name))
+
                 index = self._skip_following_sqlcode_blocks(
                     lines=lines,
                     start_index=block_end,
                 )
+
                 self.messages.append(
-                    f"Update restart/control skip: restart/control record {record_name} requires manual DB2 redesign."
+                    "Update restart/control skip: restart/control record "
+                    f"{record_name} requires manual DB2 redesign."
                 )
                 continue
 
@@ -157,6 +204,42 @@ class UpdateRestartSkipComposer:
             index += 1
 
         return "\n".join(output).rstrip() + "\n"
+
+    def _removed_obtain_calc_block_end(
+        self,
+        lines: list[str],
+        start_index: int,
+    ) -> int:
+        """
+        Skip generated direct-update optimization block like:
+
+            *DB2: Removed OBTAIN CALC SELECT for FFRECAB.
+            *DB2: Direct UPDATE will use mapped composite key WHERE clause.
+            CONTINUE.
+
+        After this method returns, compose() removes any following SQLCODE
+        block because no SQL was actually executed.
+        """
+        index = start_index + 1
+
+        while index < len(lines):
+            logical = self._logical(lines[index])
+
+            if not logical:
+                index += 1
+                continue
+
+            if self.DB2_COMMENT_PATTERN.match(logical):
+                index += 1
+                continue
+
+            if self.CONTINUE_PATTERN.match(logical):
+                index += 1
+                break
+
+            break
+
+        return index
 
     def _converted_missing_mapping_block_end(
         self,
@@ -167,7 +250,6 @@ class UpdateRestartSkipComposer:
 
         while index < len(lines):
             logical = self._logical(lines[index])
-            upper = logical.upper()
 
             if not logical:
                 index += 1
@@ -230,12 +312,12 @@ class UpdateRestartSkipComposer:
         record_name: str,
     ) -> list[str]:
         return [
-            f"*DB2: IDMS record {record_name} was not converted automatically.",
-            "*DB2: Missing Sheet Mapping and DCLGEN metadata.",
-            "*DB2: Restart/control logic requires manual DB2 redesign.",
+            f"* DB2: IDMS record {record_name} was not converted automatically.",
+            "* DB2: Missing Sheet Mapping and DCLGEN metadata.",
+            "* DB2: Restart/control logic requires manual DB2 redesign.",
             "CONTINUE.",
         ]
-
+    
     def _looks_like_restart_or_control(
         self,
         record_name: str,
@@ -260,7 +342,10 @@ class UpdateRestartSkipComposer:
             if not self.SQLCODE_IF_PATTERN.match(logical):
                 break
 
-            index = self._skip_if_block(lines, index)
+            index = self._skip_if_block(
+                lines=lines,
+                start_index=index,
+            )
 
         return index
 

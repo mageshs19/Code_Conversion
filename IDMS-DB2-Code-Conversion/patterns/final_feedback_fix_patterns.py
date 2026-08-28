@@ -126,3 +126,39 @@ DATE_HIGH_EUR_LITERAL_PATTERN = re.compile(
     r"'31\.12\.9999'",
     flags=re.IGNORECASE,
 )
+
+# --- Appended: patterns previously inlined in FinalFeedbackFixComposer ---
+
+STRING_START_PATTERN = re.compile(r"^STRING\b", flags=re.IGNORECASE)
+STRING_END_PATTERN = re.compile(r"^END-STRING\.?$", flags=re.IGNORECASE)
+STRING_INTO_PATTERN = re.compile(r"^INTO\b", flags=re.IGNORECASE)
+
+PROCEDURE_DIVISION_PATTERN = re.compile(
+    r"^PROCEDURE\s+DIVISION\b", flags=re.IGNORECASE
+)
+DIVISION_PATTERN = re.compile(
+    r"^[A-Z][A-Z0-9-]*\s+DIVISION\.?$", flags=re.IGNORECASE
+)
+SECTION_PATTERN = re.compile(
+    r"^[A-Z][A-Z0-9-]*\s+SECTION\.?$", flags=re.IGNORECASE
+)
+PARAGRAPH_PATTERN = re.compile(
+    r"^[A-Z0-9][A-Z0-9-]*\.?$", flags=re.IGNORECASE
+)
+
+# Note: EXEC_SQL_START_PATTERN and END_EXEC_PATTERN already exist in this file.
+# The composer's local EXEC_SQL_END_PATTERN (r"^END-EXEC\.?$") is renamed to
+# avoid clashing with the existing END_EXEC_PATTERN (r"\bEND-EXEC\b").
+EXEC_SQL_END_LINE_PATTERN = re.compile(r"^END-EXEC\.?$", flags=re.IGNORECASE)
+
+IF_START_PATTERN = re.compile(r"^IF\s+", flags=re.IGNORECASE)
+ELSE_PATTERN = re.compile(r"^ELSE\.?$", flags=re.IGNORECASE)
+END_IF_PATTERN = re.compile(r"^END-IF\.?$", flags=re.IGNORECASE)
+EVALUATE_START_PATTERN = re.compile(r"^EVALUATE\s+", flags=re.IGNORECASE)
+WHEN_PATTERN = re.compile(r"^WHEN\s+", flags=re.IGNORECASE)
+END_EVALUATE_PATTERN = re.compile(r"^END-EVALUATE\.?$", flags=re.IGNORECASE)
+
+DB2_COLON_COMMENT_BODY_PATTERN = re.compile(r"^\*?\s*DB2:", flags=re.IGNORECASE)
+DB2_SPACE_COMMENT_BODY_PATTERN = re.compile(
+    r"^\*?\s*DB2\s+", flags=re.IGNORECASE
+)

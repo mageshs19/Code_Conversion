@@ -1,22 +1,32 @@
+# LOCATION: rules/sql_generation_rules.py
+# ACTION: REPLACE ENTIRE FILE (adds the date sentinel constant)
+
 """
-SQL generation rules.
+SQL generation constant tuples.
 
-SQL services and generators must import these rules instead of embedding
-business rules directly in generator classes.
+Constants only. No regex, no runtime logic.
 """
 
+SELECT_EXCLUDE_PREFIXES = (
+    "TS_CREATE",
+    "TS_UPDATE",
+    "ID_USERID",
+    "NR_USERID",
+)
 
-SQL_GENERATION_RULES = [
-    "Sheet Mapping is the authority for DB2 record/table names.",
-    "Sheet Mapping is the authority for DB2 column names.",
-    "DCLGEN is the authority for COBOL host variable spelling and group names.",
-    "If Sheet Mapping uses TB but uploaded DCLGEN uses TV, generated SQL uses TV.",
-    "UPDATE generation is conservative/manual-style, not broad all-column update.",
-]
+FALLBACK_KEY_PREFIXES = (
+    "CT_",
+    "NR_",
+    "NS_",
+    "CO_",
+)
 
+DATE_COLUMN_PREFIXES = (
+    "DA_",
+    "DT_",
+)
 
-TABLE_RESOLUTION_RULES = [
-    "If DZBFARTB is found in Sheet Mapping but DCLGEN has DZBFARTV, resolve to DZBFARTV.",
-    "Generated SELECT FROM table name must match resolved DCLGEN table name.",
-    "Generated UPDATE table name must match resolved DCLGEN table name.",
-]
+# DB2 low-date sentinel used when a source date is ZEROES or SPACES.
+# Manual standard moves the numeric 00010101 (0001-01-01) into DA-CCYYMMDD
+# instead of moving SPACES to the target date field.
+DB2_DATE_NULL_SENTINEL = "00010101"

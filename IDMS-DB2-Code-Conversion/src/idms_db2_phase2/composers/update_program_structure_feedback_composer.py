@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import re
 
-from idms_db2_phase2.composers.update_program_feedback_shared import (
-    UpdateProgramFeedbackShared,
+from idms_db2_phase2.composers.update_sql_cleanup_base import (
+    UpdateSqlCleanupBase,
 )
 from idms_db2_phase2.services.name_normalizer import NameNormalizer
 
 
-class UpdateProgramStructureFeedbackComposer(UpdateProgramFeedbackShared):
+class UpdateProgramStructureFeedbackComposer(UpdateSqlCleanupBase):
     """
     Fixes update-program structure feedback issues:
     - DCLGEN INCLUDE placement.

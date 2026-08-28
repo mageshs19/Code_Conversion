@@ -66,3 +66,14 @@ DB2_DATE_HIGH_LITERAL_BY_FORMAT = {
 }
 
 ORDER_BY_COLUMNS_IN_SELECT_DEFAULT = False
+
+# --- Appended: constants previously inlined in FinalFeedbackFixComposer ---
+
+FINAL_FIX_STRING_START_BODY_INDENT = "    "
+FINAL_FIX_STRING_CONTINUATION_BODY_INDENT = "           "
+FINAL_FIX_STRING_INTO_BODY_INDENT = "      "
+
+FINAL_FIX_AREA_B_INDENT = "    "
+FINAL_FIX_NESTED_INDENT = "    "
+
+# Reuse the shared NON_PARAGRAPH_SINGLE_WORDS from rules/cobol_statement_rules.py.

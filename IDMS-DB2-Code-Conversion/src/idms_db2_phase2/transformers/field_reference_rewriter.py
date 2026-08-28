@@ -1,5 +1,4 @@
 import re
-from difflib import SequenceMatcher
 
 from idms_db2_phase2.repositories.mapping_repository import MappingRepository
 from idms_db2_phase2.resolvers.host_variable_resolver import HostVariableResolver
@@ -99,7 +98,6 @@ class FieldReferenceRewriter:
         "HELP-",
     )
 
-    MIN_SIMILARITY_FOR_ALIAS = 0.94
 
     def __init__(
         self,
@@ -364,7 +362,6 @@ class FieldReferenceRewriter:
             )
 
         self._add_redefines_aliases()
-        self._add_strict_similarity_aliases()
 
     def _field_map_for_record(
         self,
@@ -480,40 +477,6 @@ class FieldReferenceRewriter:
                 if base_key in field_map:
                     field_map[alias_key] = field_map[base_key]
 
-    def _add_strict_similarity_aliases(
-        self,
-    ) -> None:
-        for record, field_map in self.record_field_map.items():
-            existing_keys = list(field_map.keys())
-
-            rows = self.mapping_repository.rows_for_record(record)
-
-            for row in rows:
-                for source_candidate in self._source_candidates_from_row(row):
-                    source_key = self._field_key(source_candidate)
-
-                    if not source_key:
-                        continue
-
-                    if source_key in field_map:
-                        continue
-
-                    best_key = ""
-                    best_score = 0.0
-
-                    for existing_key in existing_keys:
-                        score = self._similarity(source_key, existing_key)
-
-                        if score > best_score:
-                            best_score = score
-                            best_key = existing_key
-
-                    if (
-                        best_key
-                        and best_score >= self.MIN_SIMILARITY_FOR_ALIAS
-                        and best_key in field_map
-                    ):
-                        field_map[source_key] = field_map[best_key]
 
     def _dclgen_reference_for_column(
         self,
@@ -879,13 +842,3 @@ class FieldReferenceRewriter:
 
         return ""
 
-    def _similarity(
-        self,
-        left: str,
-        right: str,
-    ) -> float:
-        return SequenceMatcher(
-            None,
-            NameNormalizer.compact(left),
-            NameNormalizer.compact(right),
-        ).ratio()

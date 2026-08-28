@@ -46,6 +46,7 @@ class UpdateFinalFeedbackService:
     - It only changes non-SQL DCLGROUP.HOST references.
     - It only replaces MOVE SPACES TO bare-record when a nearby DCLGEN group
       context is clear.
+    - It does not replace DB2 date helper/work fields such as DA-* or DT-*.
     - It only inserts audit MOVE statements for audit columns already present
       in generated UPDATE SET assignments.
     - It only rewrites diagnostic labels when a nearby DB2 table can be
@@ -53,7 +54,7 @@ class UpdateFinalFeedbackService:
     """
 
     LOOKAHEAD_LIMIT = 25
-    LOOKBACK_DUPLICATE_LIMIT = 15
+    LOOKBACK_DUPLICATE_LIMIT = 80
 
     PROTECTED_BARE_TARGET_PREFIXES = (
         "WS-",
@@ -72,6 +73,8 @@ class UpdateFinalFeedbackService:
         "HR-",
         "HELP-",
         "PROGRAM-",
+        "DA-",
+        "DT-",
     )
 
     TIMESTAMP_AUDIT_PREFIXES = (
@@ -158,6 +161,7 @@ class UpdateFinalFeedbackService:
     ) -> str:
         group = str(match.group("group") or "").upper()
         host = str(match.group("host") or "").upper()
+
         return f"{host} OF {group}"
 
     def _replace_bare_record_initialization(
@@ -182,6 +186,10 @@ class UpdateFinalFeedbackService:
                 if EXEC_SQL_END_PATTERN.match(logical):
                     in_exec_sql = False
 
+                continue
+
+            if self.fixed_format.is_comment_or_control_line(line):
+                output.append(line)
                 continue
 
             match = MOVE_TO_BARE_RECORD_PATTERN.match(logical)
@@ -610,9 +618,10 @@ class UpdateFinalFeedbackService:
         group: str,
     ) -> bool:
         target = str(group or "").upper()
+        start = max(0, len(output) - self.LOOKBACK_DUPLICATE_LIMIT)
 
-        for line in output[-self.LOOKBACK_DUPLICATE_LIMIT:]:
-            logical = self.fixed_format.logical(line)
+        for index in range(len(output) - 1, start - 1, -1):
+            logical = self.fixed_format.logical(output[index])
             match = INITIALIZE_DCL_PATTERN.match(logical)
 
             if match and str(match.group("group") or "").upper() == target:

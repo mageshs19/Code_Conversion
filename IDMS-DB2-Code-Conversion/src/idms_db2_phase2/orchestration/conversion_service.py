@@ -9,12 +9,9 @@ from idms_db2_phase2.composers.cursor_order_cleanup_composer import (
 from idms_db2_phase2.composers.db2_date_comparison_composer import (
     Db2DateComparisonComposer,
 )
-from idms_db2_phase2.composers.feedback_cleanup_composer import (
-    FeedbackCleanupComposer,
-)
-from idms_db2_phase2.composers.final_feedback_fix_composer import (
-    FinalFeedbackFixComposer,
-    FinalFeedbackFixComposerConfig,
+from idms_db2_phase2.composers.final_cobol_fix_composer import (
+    FinalCobolFixComposer,
+    FinalCobolFixComposerConfig,
 )
 from idms_db2_phase2.composers.fixed_format_composer import FixedFormatComposer
 from idms_db2_phase2.composers.manual_layout_composer import ManualLayoutComposer
@@ -61,6 +58,15 @@ from idms_db2_phase2.transformers.pic_length_auto_fixer import (
 from idms_db2_phase2.validators.input_validator import InputValidator
 from idms_db2_phase2.validators.mapping_validator import MappingValidator
 from idms_db2_phase2.validators.production_validator import ProductionValidator
+from idms_db2_phase2.composers.cobol_cleanup_composer import (
+    CobolCleanupComposer,
+)
+from idms_db2_phase2.composers.unmapped_record_block_composer import (
+    UnmappedRecordBlockComposer,
+)
+from idms_db2_phase2.services.final_sequence_resequencer_service import (
+    FinalSequenceResequencerService,
+)
 
 
 class ConversionService:
@@ -213,18 +219,18 @@ class ConversionService:
             self._component_messages(composers["feedback_cleanup"])
         )
 
-        converted_cobol = composers["update_restart_skip"].compose(
-            converted_cobol
-        )
-        validation_messages.extend(
-            self._component_messages(composers["update_restart_skip"])
-        )
-
         converted_cobol = composers["update_program_feedback"].compose(
             converted_cobol
         )
         validation_messages.extend(
             self._component_messages(composers["update_program_feedback"])
+        )
+
+        converted_cobol = composers["update_restart_skip"].compose(
+            converted_cobol
+        )
+        validation_messages.extend(
+            self._component_messages(composers["update_restart_skip"])
         )
 
         converted_cobol = composers["formatter"].format(converted_cobol)
@@ -236,44 +242,41 @@ class ConversionService:
             converted_text=converted_cobol,
         )
 
+        # Ensure ALL lines are 80-column fixed-format BEFORE commenting, so
+        # generator-inserted blocks (INCLUDE DZBFARTV, WS-DATUMVELDEN) are
+        # sequenced. This runs before the composer, so it cannot collapse
+        # the comment lines (they do not exist yet).
         converted_cobol = composers["fixed_format"].format(converted_cobol)
 
-        converted_cobol = composers["cursor_flow"].compose(converted_cobol)
-
-        converted_cobol = composers["sqlcode_cleanup"].compose(
-            converted_cobol
+        # LAST content pass: comment unmapped record blocks (record-level).
+        # Emits production 80-column comment lines: '*' in column 7,
+        # preserved indentation, wrapped bodies, sequence numbers intact.
+        unmapped_block_composer = UnmappedRecordBlockComposer(
+            table_name_resolver=resolvers["table_name"],
+            column_name_resolver=resolvers["column_name"],
+            original_idms_text=conversion_input.idms_cobol_text,
         )
-
-        converted_cobol = composers["cursor_order_cleanup"].compose(
-            converted_cobol
-        )
-
-        converted_cobol = composers["date_compare"].compose(converted_cobol)
-
-        converted_cobol = composers["feedback_cleanup"].compose(
-            converted_cobol
-        )
+        converted_cobol = unmapped_block_composer.compose(converted_cobol)
         validation_messages.extend(
-            self._component_messages(composers["feedback_cleanup"])
+            self._component_messages(unmapped_block_composer)
         )
 
-        converted_cobol = composers["update_restart_skip"].compose(
-            converted_cobol
+        # Normalize PROCEDURE DIVISION Area-B indentation to a consistent
+        # 4-space indent (fixes irregular 2/6-space generator output).
+        from idms_db2_phase2.composers.procedure_indent_normalizer import (
+            ProcedureIndentNormalizer,
         )
+        indent_normalizer = ProcedureIndentNormalizer()
+        converted_cobol = indent_normalizer.compose(converted_cobol)
         validation_messages.extend(
-            self._component_messages(composers["update_restart_skip"])
+            self._component_messages(indent_normalizer)
         )
 
-        converted_cobol = composers["update_program_feedback"].compose(
-            converted_cobol
+        # Re-sequence ONLY columns 1-6 and 73-80.
+        from idms_db2_phase2.services.final_sequence_resequencer_service import (
+            FinalSequenceResequencerService,
         )
-        validation_messages.extend(
-            self._component_messages(composers["update_program_feedback"])
-        )
-
-        converted_cobol = composers["fixed_format"].format(converted_cobol)
-
-        converted_cobol = composers["final_feedback_fix"].compose(
+        converted_cobol = FinalSequenceResequencerService().resequence(
             converted_cobol
         )
 
@@ -289,7 +292,7 @@ class ConversionService:
             validation_messages=self._unique_messages(validation_messages),
             operations=operations,
         )
-
+    
     def _repositories(
         self,
         conversion_input: ConversionInput,
@@ -425,31 +428,69 @@ class ConversionService:
         repositories: dict[str, object],
         resolvers: dict[str, object],
     ) -> dict[str, object]:
+        composers: dict[str, object] = {}
+        composers.update(self._formatting_composers())
+        composers.update(self._cursor_composers())
+        composers.update(
+            self._cleanup_composers(
+                repositories=repositories,
+                resolvers=resolvers,
+            )
+        )
+        composers.update(self._update_composers(repositories, resolvers))
+        composers.update(self._final_fix_composers())
+        return composers
+
+    def _formatting_composers(self) -> dict[str, object]:
         return {
             "formatter": CobolFormatter(),
-            "cursor_flow": CursorFlowComposer(),
-            "cursor_order_cleanup": CursorOrderCleanupComposer(),
-            "date_compare": Db2DateComparisonComposer(),
-            "feedback_cleanup": FeedbackCleanupComposer(
-                dclgen_repository=repositories["dclgen"],
-            ),
-            "final_feedback_fix": FinalFeedbackFixComposer(
-                config=FinalFeedbackFixComposerConfig(
-                    db2_date_external_format="DD.MM.YYYY",
-                    require_order_by_columns_in_select=False,
-                )
-            ),
             "fixed_format": FixedFormatComposer(),
             "manual_layout": ManualLayoutComposer(),
-            "sqlcode_cleanup": SqlcodeWrapperCleanupComposer(),
             "style_preserver": ManualStylePreserver(),
+        }
+
+    def _cursor_composers(self) -> dict[str, object]:
+        return {
+            "cursor_flow": CursorFlowComposer(),
+            "cursor_order_cleanup": CursorOrderCleanupComposer(),
+            "sqlcode_cleanup": SqlcodeWrapperCleanupComposer(),
+            "date_compare": Db2DateComparisonComposer(),
+        }
+
+    def _cleanup_composers(
+        self,
+        repositories: dict[str, object],
+        resolvers: dict[str, object],
+    ) -> dict[str, object]:
+        return {
+            "feedback_cleanup": CobolCleanupComposer(
+                dclgen_repository=repositories["dclgen"],
+            ),
+            "update_restart_skip": UpdateRestartSkipComposer(),
+        }
+
+    def _update_composers(
+        self,
+        repositories: dict[str, object],
+        resolvers: dict[str, object],
+    ) -> dict[str, object]:
+        return {
             "update_program_feedback": UpdateProgramFeedbackComposer(
                 mapping_repository=repositories["mapping"],
                 dclgen_repository=repositories["dclgen"],
                 table_name_resolver=resolvers["table_name"],
                 host_variable_resolver=resolvers["host_variable"],
             ),
-            "update_restart_skip": UpdateRestartSkipComposer(),
+        }
+
+    def _final_fix_composers(self) -> dict[str, object]:
+        return {
+            "final_feedback_fix": FinalCobolFixComposer(
+                config=FinalCobolFixComposerConfig(
+                    db2_date_external_format="DD.MM.YYYY",
+                    require_order_by_columns_in_select=False,
+                )
+            ),
         }
 
     def _component_messages(

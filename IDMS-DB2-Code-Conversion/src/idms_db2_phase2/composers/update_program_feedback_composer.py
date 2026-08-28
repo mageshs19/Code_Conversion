@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from idms_db2_phase2.composers.update_program_sql_feedback_composer import (
-    UpdateProgramSqlFeedbackComposer,
+from idms_db2_phase2.composers.update_sql_cleanup_composer import (
+    UpdateSqlCleanupComposer,
 )
+
 from idms_db2_phase2.composers.update_program_structure_feedback_composer import (
     UpdateProgramStructureFeedbackComposer,
 )
@@ -26,7 +27,7 @@ class UpdateProgramFeedbackComposer:
         table_name_resolver: TableNameResolver,
         host_variable_resolver: HostVariableResolver,
     ) -> None:
-        self.sql_feedback = UpdateProgramSqlFeedbackComposer(
+        self.sql_feedback = UpdateSqlCleanupComposer(
             mapping_repository=mapping_repository,
             dclgen_repository=dclgen_repository,
             table_name_resolver=table_name_resolver,

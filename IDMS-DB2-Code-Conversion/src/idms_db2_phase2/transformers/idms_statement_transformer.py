@@ -26,6 +26,10 @@ from patterns.idms_patterns import (
     STORE_PATTERN,
     USAGE_MODE_PATTERN,
 )
+from rules.conversion_rules import (
+    COMMENTED_IDMS_LINE_PREFIX,
+    UNMAPPED_RECORD_MARKER_TEMPLATE,
+)
 
 
 class IdmsStatementTransformer:
@@ -47,17 +51,36 @@ class IdmsStatementTransformer:
 
     def __init__(
         self,
-        sql_generator: SqlGenerator,
-        sql_error_generator: SqlErrorGenerator,
-        table_name_resolver: TableNameResolver,
-        cursor_name_resolver: CursorNameResolver,
+        sql_generator,
+        sql_error_generator,
+        table_name_resolver,
+        cursor_name_resolver,
     ) -> None:
         self.sql_generator = sql_generator
         self.sql_error_generator = sql_error_generator
         self.table_name_resolver = table_name_resolver
         self.cursor_name_resolver = cursor_name_resolver
         self.messages: list[str] = []
+        # NEW: collect every record with no DB2 target so a composer
+        # can comment the WHOLE record block at record level.
+        self.unmapped_records: set[str] = set()
 
+    def _keep_and_comment_unmapped(
+        self,
+        record: str,
+        stripped_line: str,
+    ) -> list[str]:
+        """
+        Record-level Option B: register the record as unmapped so the
+        UnmappedRecordBlockComposer comments EVERY line touching this
+        record (not just this single IDMS verb line).
+        """
+        cobol_record = NameNormalizer.to_cobol(record)
+        self.unmapped_records.add(cobol_record)   # NEW
+        return [
+            UNMAPPED_RECORD_MARKER_TEMPLATE.format(record=cobol_record),
+            f"{COMMENTED_IDMS_LINE_PREFIX} {stripped_line}",
+        ]
     def transform_line(
         self,
         line: str,
@@ -293,9 +316,13 @@ class IdmsStatementTransformer:
         Convert OBTAIN CALC.
 
         Feedback rule:
-        - DB2 SELECT before UPDATE is not required.
-        - Direct UPDATE with composite key WHERE clause is enough.
-        - Original executable IDMS statement must be removed.
+        - DB2 SELECT before UPDATE is not required for mapped update flow.
+        - Direct UPDATE with composite key WHERE clause is enough only when
+          the record has valid Sheet Mapping / DCLGEN table metadata.
+        - Original executable IDMS statement must still be removed.
+        - If table metadata is missing, do not emit a direct-update comment.
+          Emit a skipped conversion block so restart/control cleanup can
+          replace it with a manual redesign comment and remove SQLCODE checks.
         """
         match = OBTAIN_CALC_PATTERN.search(upper)
 
@@ -306,18 +333,28 @@ class IdmsStatementTransformer:
             return None
 
         record = NameNormalizer.normalize(match.group("record"))
+        cobol_record = NameNormalizer.to_cobol(record)
 
         if current_division != "PROCEDURE":
             return [
                 f"*DB2: OBTAIN CALC ignored outside PROCEDURE DIVISION: {stripped_line}",
             ]
 
+        table_name = self.table_name_resolver.table_for_record(record)
+
+        if not table_name:
+            # Unmapped record (e.g. FFRECAB) -> keep line, comment it, mark it.
+            return self._keep_and_comment_unmapped(
+                record=record,
+                stripped_line=stripped_line,
+            )
+
         return [
-            f"*DB2: Removed OBTAIN CALC SELECT for {NameNormalizer.to_cobol(record)}.",
+            f"*DB2: Removed OBTAIN CALC SELECT for {cobol_record}.",
             "*DB2: Direct UPDATE will use mapped composite key WHERE clause.",
             "CONTINUE.",
         ]
-
+    
     def _convert_obtain_first_next(
         self,
         upper: str,
@@ -408,7 +445,6 @@ class IdmsStatementTransformer:
             (ERASE_PATTERN, "ERASE", self.sql_generator.delete),
         ]:
             match = pattern.search(upper)
-
             if not match:
                 continue
 
@@ -416,13 +452,21 @@ class IdmsStatementTransformer:
 
             if current_division != "PROCEDURE":
                 return [
-                    f"*DB2: {operation_name} ignored outside PROCEDURE DIVISION: {stripped_line}",
+                    f"*DB2: {operation_name} ignored outside PROCEDURE "
+                    f"DIVISION: {stripped_line}",
                 ]
+
+            # Unmapped record -> keep line, comment it, mark it (Option B).
+            if not self.table_name_resolver.table_for_record(record):
+                return self._keep_and_comment_unmapped(
+                    record=record,
+                    stripped_line=stripped_line,
+                )
 
             return generator_method(record)
 
         return None
-
+    
     def _replace_idms_condition_tokens(
         self,
         line: str,
@@ -440,6 +484,20 @@ class IdmsStatementTransformer:
             pattern.search(upper)
             for pattern in IDMS_DECLARATIVE_OR_CONTROL_PATTERNS
         )
+    # LOCATION: src/idms_db2_phase2/transformers/idms_statement_transformer.py
+    # Restore original (no self.unmapped_records)
+
+    def _keep_and_comment_unmapped(
+        self,
+        record: str,
+        stripped_line: str,
+    ) -> list[str]:
+        cobol_record = NameNormalizer.to_cobol(record)
+        return [
+            UNMAPPED_RECORD_MARKER_TEMPLATE.format(record=cobol_record),
+            f"{COMMENTED_IDMS_LINE_PREFIX} {stripped_line}",
+        ]
+    
 
     def _removed_idms_executable_lines(
         self,

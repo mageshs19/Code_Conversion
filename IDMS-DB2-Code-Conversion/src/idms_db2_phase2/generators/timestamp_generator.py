@@ -1,10 +1,29 @@
+# LOCATION: src/idms_db2_phase2/generators/timestamp_generator.py
+# ACTION: REPLACE ENTIRE FILE
+
 from __future__ import annotations
 
 import re
 
 from idms_db2_phase2.repositories.mapping_repository import MappingRepository
-from idms_db2_phase2.resolvers.host_variable_resolver import HostVariableResolver
+from idms_db2_phase2.resolvers.host_variable_resolver import (
+    HostVariableResolver,
+)
 from idms_db2_phase2.resolvers.table_name_resolver import TableNameResolver
+from rules.timestamp_audit_rules import (
+    TIMESTAMP_CS_PROGRAM_TEMPLATE,
+    TIMESTAMP_DEFAULT_PROGRAM_ID,        # <-- add
+    TIMESTAMP_MOVE_ALIGN_COLUMN,
+    TIMESTAMP_MOVE_FIELDS,
+    TIMESTAMP_PARAGRAPH_DISPLAY,
+    TIMESTAMP_PARAGRAPH_FIELD_MOVE_TEMPLATE,
+    TIMESTAMP_PARAGRAPH_HEADER_TEMPLATE,
+    TIMESTAMP_PARAGRAPH_SOURCE_MOVE,
+    TIMESTAMP_PARAGRAPH_TERMINATOR,
+    TIMESTAMP_PROGRAM_ID_LENGTH,         # <-- add
+    TIMESTAMP_WS_LINES,
+    TIMESTAMP_WS_MARKER,
+)
 
 
 class TimestampGenerator:
@@ -19,11 +38,11 @@ class TimestampGenerator:
     For update/insert/delete programs, it adds a safe timestamp working-storage
     block and a safe timestamp paragraph only when DB2 write activity is found.
 
-    The full audit-field MOVE generation can be enhanced later after retrieval
-    execution is stable.
+    This class owns no COBOL layout literals; all timestamp templates live in
+    rules/timestamp_audit_rules.py. Only the program-id is dynamic.
     """
 
-    WS_MARKER = "DB2 GENERATED TIMESTAMP AND AUDIT WORKING STORAGE"
+    WS_MARKER = TIMESTAMP_WS_MARKER
     PARAGRAPH_NAME = "600-GET-TIMESTAMP"
     PARAGRAPH_EXIT_NAME = "600-GET-TIMESTAMP-EXIT"
 
@@ -95,7 +114,8 @@ class TimestampGenerator:
 
         if not self._has_db2_write_activity(cobol_text):
             self.messages.append(
-                "Timestamp generator: no DB2 write activity found; timestamp audit generation skipped."
+                "Timestamp generator: no DB2 write activity found; "
+                "timestamp audit generation skipped."
             )
             return cobol_text.rstrip() + "\n", self.messages
 
@@ -115,7 +135,8 @@ class TimestampGenerator:
         )
 
         self.messages.append(
-            "Timestamp generator: timestamp working storage and paragraph ensured."
+            "Timestamp generator: timestamp working storage and paragraph "
+            "ensured."
         )
 
         return updated_text.rstrip() + "\n", self.messages
@@ -133,7 +154,9 @@ class TimestampGenerator:
                 in_exec_sql = True
                 continue
 
-            if in_exec_sql and self.DB2_WRITE_OPERATION_PATTERN.search(logical):
+            if in_exec_sql and self.DB2_WRITE_OPERATION_PATTERN.search(
+                logical
+            ):
                 return True
 
             if self.END_EXEC_PATTERN.match(logical):
@@ -248,60 +271,76 @@ class TimestampGenerator:
         self,
         target_program_id: str,
     ) -> str:
+        """
+        Build the timestamp working storage from rules/ templates. Only the
+        program-id is dynamic; the fallback program-id and field width come
+        from rules/ so no program name or length literal lives in generator
+        logic.
+        """
+        program_id = self._resolve_program_id(target_program_id)
+
+        lines = [
+            f"* {TIMESTAMP_WS_MARKER}",
+            TIMESTAMP_CS_PROGRAM_TEMPLATE.format(program_id=program_id),
+        ]
+        lines.extend(TIMESTAMP_WS_LINES)
+
+        return "\n".join(lines)
+
+    def _resolve_program_id(
+        self,
+        target_program_id: str,
+    ) -> str:
+        """
+        Resolve the CS-PROGRAM value. Falls back to the configured default
+        program-id (from rules/) only when no target PROGRAM-ID is supplied,
+        and truncates to the configured COBOL field length.
+        """
         program_id = str(target_program_id or "").strip().upper()
 
         if not program_id:
-            program_id = "DB2PGM"
+            program_id = TIMESTAMP_DEFAULT_PROGRAM_ID
 
-        if len(program_id) > 8:
-            program_id = program_id[:8]
+        if len(program_id) > TIMESTAMP_PROGRAM_ID_LENGTH:
+            program_id = program_id[:TIMESTAMP_PROGRAM_ID_LENGTH]
 
-        return "\n".join(
-            [
-                f"* {self.WS_MARKER}",
-                f"01 CS-PROGRAM                 PIC X(8) VALUE '{program_id:<8}'.",
-                "01 WS-TIMESTAMP-FIELDS.",
-                "   05 TS-SYSTEM.",
-                "      10 DA-SYS.",
-                "         15 DA-SYS-CCYY.",
-                "            20 CC             PIC X(2).",
-                "            20 YY             PIC X(2).",
-                "         15 MM                PIC X(2).",
-                "         15 DD                PIC X(2).",
-                "      10 HR-SYS.",
-                "         15 HH                PIC X(2).",
-                "         15 MI                PIC X(2).",
-                "         15 SS                PIC X(2).",
-                "         15 TT                PIC X(2).",
-                "   05 TS-TIMESTAMP.",
-                "      10 DA-TIMESTAMP.",
-                "         15 DA-TIMESTAMP-CCYY.",
-                "            20 CC             PIC X(2).",
-                "            20 YY             PIC X(2).",
-                "         15 MM                PIC X(2).",
-                "         15 DD                PIC X(2).",
-                "      10 HR-TIMESTAMP.",
-                "         15 HH                PIC X(2).",
-                "         15 MI                PIC X(2).",
-                "         15 SS                PIC X(2).",
-                "         15 TT                PIC X(2).",
-            ]
-        )
-
+        return program_id
+    
     def _timestamp_paragraph_block(
         self,
     ) -> str:
-        return "\n".join(
-            [
-                f"{self.PARAGRAPH_NAME}.",
-                "    ACCEPT TS-SYSTEM FROM DATE.",
-                "    ACCEPT HR-SYS FROM TIME.",
-                "    MOVE DA-SYS TO DA-TIMESTAMP.",
-                "    MOVE HR-SYS TO HR-TIMESTAMP.",
-                "    DISPLAY 'TIMESTAMP: ' TS-TIMESTAMP.",
-                f"{self.PARAGRAPH_EXIT_NAME}.",
-                "    EXIT.",
-            ]
+        """
+        Build the timestamp paragraph from rules/ templates. Uses
+        FUNCTION CURRENT-DATE and field-by-field moves (manual standard).
+        """
+        lines = [
+            TIMESTAMP_PARAGRAPH_HEADER_TEMPLATE.format(
+                paragraph_name=self.PARAGRAPH_NAME
+            ),
+            TIMESTAMP_PARAGRAPH_SOURCE_MOVE,
+        ]
+
+        for field in TIMESTAMP_MOVE_FIELDS:
+            lines.append(self._timestamp_field_move_line(field))
+
+        lines.append(TIMESTAMP_PARAGRAPH_DISPLAY)
+        lines.append(TIMESTAMP_PARAGRAPH_TERMINATOR)
+
+        return "\n".join(lines)
+
+    def _timestamp_field_move_line(
+        self,
+        field: str,
+    ) -> str:
+        """
+        Build one aligned MOVE line from the rules/ template. Padding keeps
+        the TO column aligned regardless of field-name length.
+        """
+        source_part = f"     MOVE {field} OF TS-SYSTEM"
+        pad = " " * max(1, TIMESTAMP_MOVE_ALIGN_COLUMN - len(source_part))
+        return TIMESTAMP_PARAGRAPH_FIELD_MOVE_TEMPLATE.format(
+            field=field,
+            pad=pad,
         )
 
     def _working_storage_insert_index(
