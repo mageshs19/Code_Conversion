@@ -52,8 +52,8 @@ from idms_db2_phase2.services.program_name_sync_service import (
 from idms_db2_phase2.services.string_block_format_service import (
     StringBlockFormatService,
 )
-from idms_db2_phase2.services.update_final_feedback_service import (
-    UpdateFinalFeedbackService,
+from idms_db2_phase2.services.update_cobol_final_cleanup_service import (
+    UpdateCobolFinalCleanupService,
 )
 
 
@@ -85,7 +85,7 @@ class FinalCobolFixComposer:
                 self.config.require_order_by_columns_in_select
             ),
         )
-        self.update_final_feedback = UpdateFinalFeedbackService(
+        self.update_final_feedback = UpdateCobolFinalCleanupService(
             fixed_format=self.fixed_format,
         )
         self.area_alignment = CobolAreaAlignmentService(

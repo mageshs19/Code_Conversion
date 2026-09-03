@@ -46,7 +46,7 @@ class CobolParser(BaseTextParser):
             str(cobol_text or "").splitlines(),
             start=1,
         ):
-            clean_line = self.strip_sequence_area(line)
+            clean_line = self._strip_sequence_area(line)
             upper = clean_line.upper()
 
             operation = self._operation_from_line(
@@ -59,6 +59,39 @@ class CobolParser(BaseTextParser):
                 operations.append(operation)
 
         return operations
+
+    def _strip_sequence_area(
+        self,
+        line: str,
+    ) -> str:
+        """Remove COBOL fixed-format sequence areas from a raw line.
+
+        Self-contained so this parser does not depend on an external helper
+        being present on the base class. Handles:
+        - columns 1-6 : left sequence number (six leading digits)
+        - column 7    : comment/debug indicators ('*', '/')
+        Falls back to the base-class helper when available, otherwise uses a
+        conservative built-in implementation.
+        """
+        # Prefer the shared base-class helper if it exists (keeps behavior
+        # identical to the rest of the project), but never fail if it does not.
+        base_helper = getattr(super(), "strip_sequence_area", None)
+        if callable(base_helper):
+            try:
+                return base_helper(line)
+            except Exception:
+                pass
+
+        text = str(line or "").rstrip()
+
+        if len(text) > 6:
+            indicator = text[6:7]
+            if indicator in ("*", "/"):
+                return indicator
+            if text[:6].strip().isdigit():
+                return text[6:]
+
+        return text
 
     def _operation_from_line(
         self,
@@ -159,3 +192,8 @@ class CobolParser(BaseTextParser):
             )
 
         return None
+
+
+__all__ = [
+    "CobolParser",
+]

@@ -74,3 +74,30 @@ DEBUG_LINE_PATTERN = re.compile(
 r"^[Dd]\s+",
 flags=re.IGNORECASE,
 )
+
+# --- Fixed-format line parser sequence patterns (appended) ---
+
+# A true left sequence number: exactly six digits in columns 1-6 followed by
+# whitespace and a body.
+TRUE_LEFT_SEQUENCE_PATTERN = re.compile(
+    r"^(?P<left>\d{6})(?P<body>\s+.*)$",
+    flags=re.IGNORECASE,
+)
+
+# Right sequence number separated from the body by spaces.
+RIGHT_SEQUENCE_WITH_SPACES_PATTERN = re.compile(
+    r"^(?P<body>.*?)(?P<spaces>\s+)(?P<right>\d{8})\s*$",
+    flags=re.IGNORECASE,
+)
+
+# Right sequence number accidentally attached to the body (no spaces).
+TRAILING_TIGHT_RIGHT_SEQUENCE_PATTERN = re.compile(
+    r"^(?P<body>.*\S)(?P<right>\d{8})\s*$",
+    flags=re.IGNORECASE,
+)
+
+# A single COBOL identifier token (used to detect body endings).
+COBOL_IDENTIFIER_TOKEN_PATTERN = re.compile(
+    r"[A-Z][A-Z0-9-]*",
+    flags=re.IGNORECASE,
+)

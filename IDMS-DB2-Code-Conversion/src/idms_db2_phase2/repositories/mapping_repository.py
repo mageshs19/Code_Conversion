@@ -1,6 +1,3 @@
-# LOCATION: src/idms_db2_phase2/repositories/mapping_repository.py
-# ACTION: REPLACE ENTIRE FILE
-
 """
 Repository wrapper for Sheet Mapping rows.
 
@@ -17,6 +14,7 @@ This class is a thin facade that delegates to focused helpers:
 
 from __future__ import annotations
 
+from catalogs.db2_naming_catalog import DB2_TABLE_SUFFIX_EQUIVALENTS   # ADDED
 from idms_db2_phase2.domain.models import SheetMappingRow
 from idms_db2_phase2.repositories.mapping_column_resolver import (
     MappingColumnResolver,
@@ -25,6 +23,7 @@ from idms_db2_phase2.repositories.mapping_key_resolver import (
     MappingKeyResolver,
 )
 from idms_db2_phase2.repositories.mapping_row_query import MappingRowQuery
+from idms_db2_phase2.services.name_normalizer import NameNormalizer      # ADDED
 
 
 class MappingRepository:
@@ -131,3 +130,49 @@ class MappingRepository:
             record_name=record_name,
             changed_source_fields=changed_source_fields,
         )
+
+    # --- ADDED: restart AND-gate support (TB/TV aware) ---
+    def _restart_table_candidates(self, table_name: str) -> list[str]:
+        """All equivalent DB2 table spellings (TB/TV) for confirmation.
+
+        Mirrors TableNameResolver.table_candidates so a DCLGEN 'TV' name is
+        confirmed against a Sheet Mapping 'TB' name (and vice versa).
+        """
+        normalized = NameNormalizer.normalize(table_name)
+        if not normalized:
+            return []
+
+        candidates = [normalized]
+        for source_suffix, target_suffix in DB2_TABLE_SUFFIX_EQUIVALENTS:
+            if normalized.endswith(source_suffix):
+                candidates.append(
+                    normalized[: -len(source_suffix)] + target_suffix
+                )
+
+        # de-duplicate, preserve order
+        seen: set[str] = set()
+        output: list[str] = []
+        for candidate in candidates:
+            if candidate and candidate not in seen:
+                seen.add(candidate)
+                output.append(candidate)
+        return output
+
+    def confirms_restart_table(self, table_name: str) -> bool:
+        """True when the Sheet Mapping contains this DB2 table under ANY
+        equivalent TB/TV spelling.
+
+        Sheet Mapping is the authority for DB2 table names (authority_rules),
+        but it stores the intended (often 'TB') spelling while DCLGEN carries
+        the final ('TV') spelling. We therefore confirm across equivalents to
+        avoid falsely blocking valid restart generation (Case 1).
+        """
+        for candidate in self._restart_table_candidates(table_name):
+            if self.has_table(candidate):
+                return True
+        return False
+
+
+__all__ = [
+    "MappingRepository",
+]

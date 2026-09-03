@@ -1,27 +1,25 @@
-import re
-from dataclasses import dataclass, field
+from __future__ import annotations
 
+from idms_db2_phase2.analyzers.field_usage_capture_service import (
+    FieldUsageCaptureService,
+)
+from idms_db2_phase2.analyzers.field_usage_context_mapper import (
+    FieldUsageContextMapper,
+)
+from idms_db2_phase2.analyzers.field_usage_models import (
+    FieldUsage,
+    FieldUsageAnalysis,
+)
 from idms_db2_phase2.repositories.mapping_repository import MappingRepository
 from idms_db2_phase2.resolvers.table_name_resolver import TableNameResolver
-from idms_db2_phase2.services.name_normalizer import NameNormalizer
+from patterns.field_usage_analysis_patterns import (
+    COMMENT_PATTERN,
+    CONDITION_PATTERN,
+    DIVISION_PATTERN,
+    EXEC_SQL_END_PATTERN,
+    EXEC_SQL_START_PATTERN,
+)
 from patterns.sequence_patterns import strip_sequence_numbers
-
-
-@dataclass
-class FieldUsage:
-    record_name: str
-    condition_fields: set[str] = field(default_factory=set)
-    output_fields: set[str] = field(default_factory=set)
-    move_source_fields: set[str] = field(default_factory=set)
-    move_target_fields: set[str] = field(default_factory=set)
-    dclgen_host_fields: set[str] = field(default_factory=set)
-    all_fields: set[str] = field(default_factory=set)
-
-
-@dataclass
-class FieldUsageAnalysis:
-    usage_by_record: dict[str, FieldUsage] = field(default_factory=dict)
-    diagnostics: list[str] = field(default_factory=list)
 
 
 class FieldUsageAnalyzer:
@@ -38,43 +36,6 @@ class FieldUsageAnalyzer:
     This analyzer does not rewrite COBOL.
     """
 
-    QUALIFIED_REFERENCE_PATTERN = re.compile(
-        r"\b(?P<field>[A-Z][A-Z0-9-]*)\s+(?:OF|IN)\s+"
-        r"(?P<record>[A-Z][A-Z0-9-]*)\b",
-        flags=re.IGNORECASE,
-    )
-
-    DCLGEN_OF_PATTERN = re.compile(
-        r":?\s*(?P<field>[A-Z][A-Z0-9-]*)\s+OF\s+"
-        r"(?P<group>DCL[A-Z0-9-]+)",
-        flags=re.IGNORECASE,
-    )
-
-    DCLGEN_DOT_PATTERN = re.compile(
-        r":?\s*(?P<group>DCL[A-Z0-9-]+)\.(?P<field>[A-Z][A-Z0-9-]*)",
-        flags=re.IGNORECASE,
-    )
-
-    MOVE_PATTERN = re.compile(
-        r"\bMOVE\s+(?P<source>.+?)\s+TO\s+(?P<target>.+?)(?:\.|$)",
-        flags=re.IGNORECASE,
-    )
-
-    CONDITION_PATTERN = re.compile(
-        r"^\s*(IF|WHEN|UNTIL|EVALUATE)\b",
-        flags=re.IGNORECASE,
-    )
-
-    DIVISION_PATTERN = re.compile(
-        r"^\s*(IDENTIFICATION|ENVIRONMENT|DATA|PROCEDURE)\s+DIVISION\b",
-        flags=re.IGNORECASE,
-    )
-
-    COMMENT_PATTERN = re.compile(
-        r"^\s*[\*/]",
-        flags=re.IGNORECASE,
-    )
-
     def __init__(
         self,
         mapping_repository: MappingRepository,
@@ -82,7 +43,19 @@ class FieldUsageAnalyzer:
     ) -> None:
         self.mapping_repository = mapping_repository
         self.table_name_resolver = table_name_resolver
-        self.group_to_record = self._build_group_to_record_map()
+
+        self.context_mapper = FieldUsageContextMapper(
+            mapping_repository=mapping_repository,
+            table_name_resolver=table_name_resolver,
+        )
+
+        self.mapping_records = self.context_mapper.mapping_records()
+        self.group_to_record = self.context_mapper.group_to_record_map()
+
+        self.capture_service = FieldUsageCaptureService(
+            mapping_records=self.mapping_records,
+            group_to_record=self.group_to_record,
+        )
 
     def analyze(
         self,
@@ -101,27 +74,27 @@ class FieldUsageAnalyzer:
             if not logical:
                 continue
 
-            if self.COMMENT_PATTERN.match(logical):
+            if COMMENT_PATTERN.match(logical):
                 continue
 
-            division_match = self.DIVISION_PATTERN.match(logical)
+            division_match = DIVISION_PATTERN.match(logical)
 
             if division_match:
                 inside_procedure = division_match.group(1).upper() == "PROCEDURE"
                 continue
 
-            if logical.upper().startswith("EXEC SQL"):
+            if EXEC_SQL_START_PATTERN.match(logical):
                 inside_exec_sql = True
 
             if inside_exec_sql:
-                self._capture_dclgen_references(
+                self.capture_service.capture_dclgen_references(
                     logical=logical,
                     result=result,
                     is_condition=False,
                     is_output=False,
                 )
 
-                if logical.upper().startswith("END-EXEC"):
+                if EXEC_SQL_END_PATTERN.match(logical):
                     inside_exec_sql = False
 
                 continue
@@ -129,26 +102,35 @@ class FieldUsageAnalyzer:
             if not inside_procedure:
                 continue
 
-            is_condition = bool(self.CONDITION_PATTERN.match(logical))
+            is_condition = bool(CONDITION_PATTERN.match(logical))
 
-            self._capture_idms_qualified_references(
+            self.capture_service.capture_idms_qualified_references(
                 logical=logical,
                 result=result,
                 is_condition=is_condition,
             )
 
-            self._capture_dclgen_references(
+            self.capture_service.capture_dclgen_references(
                 logical=logical,
                 result=result,
                 is_condition=is_condition,
                 is_output=False,
             )
 
-            self._capture_move_usage(
+            self.capture_service.capture_move_usage(
                 logical=logical,
                 result=result,
             )
 
+        self._finalize_all_fields(result)
+        self._append_diagnostics(result)
+
+        return result
+
+    def _finalize_all_fields(
+        self,
+        result: FieldUsageAnalysis,
+    ) -> None:
         for usage in result.usage_by_record.values():
             usage.all_fields.update(usage.condition_fields)
             usage.all_fields.update(usage.output_fields)
@@ -156,8 +138,13 @@ class FieldUsageAnalyzer:
             usage.all_fields.update(usage.move_target_fields)
             usage.all_fields.update(usage.dclgen_host_fields)
 
+    def _append_diagnostics(
+        self,
+        result: FieldUsageAnalysis,
+    ) -> None:
         result.diagnostics.append(
-            f"Field usage analyzer: records with usage detected: {len(result.usage_by_record)}"
+            "Field usage analyzer: records with usage detected: "
+            f"{len(result.usage_by_record)}"
         )
 
         for record_name, usage in sorted(result.usage_by_record.items()):
@@ -171,167 +158,9 @@ class FieldUsageAnalyzer:
                 f"dclgen={len(usage.dclgen_host_fields)}"
             )
 
-        return result
 
-    def _capture_idms_qualified_references(
-        self,
-        logical: str,
-        result: FieldUsageAnalysis,
-        is_condition: bool,
-    ) -> None:
-        for match in self.QUALIFIED_REFERENCE_PATTERN.finditer(logical):
-            field_name = NameNormalizer.to_cobol(match.group("field"))
-            record_name = NameNormalizer.normalize(match.group("record"))
-
-            if not field_name or not record_name:
-                continue
-
-            if record_name.startswith("DCL"):
-                continue
-
-            if record_name not in self._mapping_records():
-                continue
-
-            usage = self._usage_for_record(result, record_name)
-            usage.all_fields.add(field_name)
-
-            if is_condition:
-                usage.condition_fields.add(field_name)
-
-    def _capture_dclgen_references(
-        self,
-        logical: str,
-        result: FieldUsageAnalysis,
-        is_condition: bool,
-        is_output: bool,
-    ) -> None:
-        for match in self.DCLGEN_OF_PATTERN.finditer(logical):
-            field_name = NameNormalizer.to_cobol(match.group("field"))
-            group_name = NameNormalizer.normalize(match.group("group"))
-            record_name = self.group_to_record.get(group_name, "")
-
-            if not field_name or not record_name:
-                continue
-
-            usage = self._usage_for_record(result, record_name)
-            usage.dclgen_host_fields.add(field_name)
-
-            if is_condition:
-                usage.condition_fields.add(field_name)
-
-            if is_output:
-                usage.output_fields.add(field_name)
-
-        for match in self.DCLGEN_DOT_PATTERN.finditer(logical):
-            field_name = NameNormalizer.to_cobol(match.group("field"))
-            group_name = NameNormalizer.normalize(match.group("group"))
-            record_name = self.group_to_record.get(group_name, "")
-
-            if not field_name or not record_name:
-                continue
-
-            usage = self._usage_for_record(result, record_name)
-            usage.dclgen_host_fields.add(field_name)
-
-            if is_condition:
-                usage.condition_fields.add(field_name)
-
-            if is_output:
-                usage.output_fields.add(field_name)
-
-    def _capture_move_usage(
-        self,
-        logical: str,
-        result: FieldUsageAnalysis,
-    ) -> None:
-        match = self.MOVE_PATTERN.search(logical)
-
-        if not match:
-            return
-
-        source_text = match.group("source")
-        target_text = match.group("target")
-        is_output = "UIT-" in target_text.upper()
-
-        for source_match in self.QUALIFIED_REFERENCE_PATTERN.finditer(source_text):
-            field_name = NameNormalizer.to_cobol(source_match.group("field"))
-            record_name = NameNormalizer.normalize(source_match.group("record"))
-
-            if not field_name or not record_name:
-                continue
-
-            if record_name.startswith("DCL"):
-                continue
-
-            if record_name not in self._mapping_records():
-                continue
-
-            usage = self._usage_for_record(result, record_name)
-            usage.move_source_fields.add(field_name)
-
-            if is_output:
-                usage.output_fields.add(field_name)
-
-        self._capture_dclgen_references(
-            logical=source_text,
-            result=result,
-            is_condition=False,
-            is_output=is_output,
-        )
-
-        for target_match in self.QUALIFIED_REFERENCE_PATTERN.finditer(target_text):
-            field_name = NameNormalizer.to_cobol(target_match.group("field"))
-            record_name = NameNormalizer.normalize(target_match.group("record"))
-
-            if not field_name or not record_name:
-                continue
-
-            if record_name.startswith("DCL"):
-                continue
-
-            if record_name not in self._mapping_records():
-                continue
-
-            usage = self._usage_for_record(result, record_name)
-            usage.move_target_fields.add(field_name)
-
-    def _usage_for_record(
-        self,
-        result: FieldUsageAnalysis,
-        record_name: str,
-    ) -> FieldUsage:
-        record = NameNormalizer.normalize(record_name)
-
-        if record not in result.usage_by_record:
-            result.usage_by_record[record] = FieldUsage(record_name=record)
-
-        return result.usage_by_record[record]
-
-    def _build_group_to_record_map(
-        self,
-    ) -> dict[str, str]:
-        output: dict[str, str] = {}
-
-        for record in self._mapping_records():
-            normalized_record = NameNormalizer.normalize(record)
-            table = self.table_name_resolver.table_for_record(normalized_record)
-
-            if not table:
-                continue
-
-            group = "DCL" + NameNormalizer.to_cobol(table)
-            output[NameNormalizer.normalize(group)] = normalized_record
-
-        return output
-
-    def _mapping_records(
-        self,
-    ) -> set[str]:
-        try:
-            return {
-                NameNormalizer.normalize(record)
-                for record in self.mapping_repository.records()
-                if NameNormalizer.normalize(record)
-            }
-        except Exception:
-            return set()
+__all__ = [
+    "FieldUsage",
+    "FieldUsageAnalysis",
+    "FieldUsageAnalyzer",
+]

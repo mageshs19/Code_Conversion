@@ -1,292 +1,85 @@
 from __future__ import annotations
 
-import sys
-from datetime import datetime
 from pathlib import Path
 
-CURRENT_FILE = Path(__file__).resolve()
-SRC_DIR = CURRENT_FILE.parents[2]
-PROJECT_ROOT = CURRENT_FILE.parents[3]
+from idms_db2_phase2.testing.update.update_environment import bootstrap_sys_path
 
-for path in [PROJECT_ROOT, SRC_DIR]:
-    if str(path) not in sys.path:
-        sys.path.insert(0, str(path))
+SRC_DIR, PROJECT_ROOT = bootstrap_sys_path(Path(__file__))
 
-from config.path_settings import (
-    DEFAULT_COPYBOOK_CANDIDATE_PATHS,
-    DEFAULT_DCLGEN_CANDIDATE_PATHS,
-    DEFAULT_OUTPUT_DIR,
-    DEFAULT_SHEET_MAPPING_PATH,
-    DEFAULT_UPDATE_SOURCE_PATH,
+from config.path_settings import (  # noqa: E402
+    DEFAULT_UPDATE_OUTPUT_DIR,
+    DEFAULT_UPDATE_PROGRAM_DIR,
     LOGS_DIR,
-    PROJECT_ROOT,
-    SRC_DIR,
 )
-from idms_db2_phase2.domain.models import ConversionInput
-from idms_db2_phase2.infrastructure.file_loader import FileLoader
-from idms_db2_phase2.infrastructure.local_uploaded_file import LocalUploadedFile
-from idms_db2_phase2.infrastructure.logger_factory import LoggerFactory
-from idms_db2_phase2.orchestration.conversion_service import ConversionService
-from idms_db2_phase2.parsers.copybook_parser import CopybookParser
-from idms_db2_phase2.parsers.dclgen_parser import DclgenParser
-from idms_db2_phase2.parsers.sheet_mapping_parser import SheetMappingParser
+from idms_db2_phase2.infrastructure.logger_factory import LoggerFactory  # noqa: E402
+from idms_db2_phase2.testing.update.update_input_loader import (  # noqa: E402
+    load_shared_inputs,
+)
+from idms_db2_phase2.testing.update.update_input_selector import (  # noqa: E402
+    selected_program_paths,
+    validate_inputs,
+)
+from idms_db2_phase2.testing.update.update_postprocess_pipeline import (  # noqa: E402
+    enhance_update_program,
+)
+from idms_db2_phase2.testing.update.update_program_converter import (  # noqa: E402
+    convert_one_program,
+    resolve_target_program_id,
+)
+from rules.update_runner_messages import (  # noqa: E402
+    BATCH_OUTPUT_FOLDER_TEMPLATE,
+    BATCH_PROGRAM_COUNT_TEMPLATE,
+    BATCH_PROGRAM_FOLDER_TEMPLATE,
+    HEADER_UPDATE_BATCH_SUMMARY,
+    RULE_UPDATE_BATCH_SUMMARY,
+)
+from rules.update_runner_rules import UPDATE_LOGGER_NAME  # noqa: E402
 
+OUTPUT_DIR = DEFAULT_UPDATE_OUTPUT_DIR
 
-TARGET_PROGRAM_ID = "VMDZ1567"
-AUTO_FIX_PIC_LENGTH_MISMATCHES = False
-
-SHEET_MAPPING_PATH = DEFAULT_SHEET_MAPPING_PATH
-IDMS_COBOL_SOURCE_PATH = DEFAULT_UPDATE_SOURCE_PATH
-OUTPUT_DIR = DEFAULT_OUTPUT_DIR
-
-DCLGEN_PATHS = [
-    path
-    for path in DEFAULT_DCLGEN_CANDIDATE_PATHS
-    if path.exists() and path.is_file()
+__all__ = [
+    "resolve_target_program_id",
+    "validate_inputs",
+    "load_shared_inputs",
+    "convert_one_program",
+    "enhance_update_program",
+    "run_conversion",
 ]
-
-COPYBOOK_PATHS = [
-    path
-    for path in DEFAULT_COPYBOOK_CANDIDATE_PATHS
-    if path.exists() and path.is_file()
-]
-
-
-def validate_file_exists(
-    file_path: Path,
-    label: str,
-) -> None:
-    if not file_path.exists():
-        raise FileNotFoundError(f"{label} file not found: {file_path}")
-
-    if not file_path.is_file():
-        raise FileNotFoundError(f"{label} path is not a file: {file_path}")
-
-
-def validate_inputs() -> None:
-    validate_file_exists(SHEET_MAPPING_PATH, "Sheet Mapping")
-    validate_file_exists(IDMS_COBOL_SOURCE_PATH, "IDMS COBOL Source")
-
-    if not DCLGEN_PATHS:
-        searched = "\n".join(
-            str(path)
-            for path in DEFAULT_DCLGEN_CANDIDATE_PATHS
-        )
-        raise ValueError(
-            "At least one DCLGEN file path is required. "
-            "No DCLGEN candidate file was found. Searched:\n"
-            f"{searched}"
-        )
-
-    for index, dclgen_path in enumerate(DCLGEN_PATHS, start=1):
-        validate_file_exists(dclgen_path, f"DCLGEN {index}")
-
-    for index, copybook_path in enumerate(COPYBOOK_PATHS, start=1):
-        validate_file_exists(copybook_path, f"Copybook {index}")
-
-    OUTPUT_DIR.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
-
-
-def load_inputs(
-    logger,
-) -> tuple[list, list, list, str, list[str]]:
-    diagnostics: list[str] = []
-
-    sheet_parser = SheetMappingParser()
-    dclgen_parser = DclgenParser()
-    copybook_parser = CopybookParser()
-    file_loader = FileLoader()
-
-    diagnostics.append("START LOAD INPUTS")
-    logger.info("START LOAD INPUTS")
-
-    sheet_file = LocalUploadedFile(SHEET_MAPPING_PATH)
-    sheet_rows = sheet_parser.parse_uploaded_file(sheet_file)
-
-    diagnostics.append(f"Sheet Mapping file: {SHEET_MAPPING_PATH}")
-    diagnostics.append(f"Sheet Mapping rows: {len(sheet_rows)}")
-    logger.info("Sheet Mapping file: %s", SHEET_MAPPING_PATH)
-    logger.info("Sheet Mapping rows: %s", len(sheet_rows))
-
-    if hasattr(sheet_parser, "diagnostics"):
-        diagnostics.extend(sheet_parser.diagnostics)
-
-    dclgen_texts: list[str] = []
-
-    diagnostics.append(f"DCLGEN file count: {len(DCLGEN_PATHS)}")
-    logger.info("DCLGEN file count: %s", len(DCLGEN_PATHS))
-
-    for index, dclgen_path in enumerate(DCLGEN_PATHS, start=1):
-        dclgen_file = LocalUploadedFile(dclgen_path)
-        dclgen_text = file_loader.read_uploaded_text(dclgen_file)
-        dclgen_texts.append(dclgen_text)
-
-        diagnostics.append(f"DCLGEN {index}: {dclgen_path}")
-        diagnostics.append(f"DCLGEN {index} text length: {len(dclgen_text)}")
-        logger.info("DCLGEN %s: %s", index, dclgen_path)
-        logger.info("DCLGEN %s text length: %s", index, len(dclgen_text))
-
-    if hasattr(dclgen_parser, "parse_many_texts"):
-        dclgen_columns = dclgen_parser.parse_many_texts(dclgen_texts)
-    else:
-        dclgen_columns = []
-
-        for index, dclgen_text in enumerate(dclgen_texts, start=1):
-            parsed_columns = dclgen_parser.parse(
-                text=dclgen_text,
-                source_label=f"DCLGEN file {index}",
-            )
-            dclgen_columns.extend(parsed_columns)
-
-    diagnostics.append(f"DCLGEN total columns: {len(dclgen_columns)}")
-    logger.info("DCLGEN total columns: %s", len(dclgen_columns))
-
-    if hasattr(dclgen_parser, "diagnostics"):
-        diagnostics.extend(dclgen_parser.diagnostics)
-
-    copybook_text_parts: list[str] = []
-
-    diagnostics.append(f"Copybook file count: {len(COPYBOOK_PATHS)}")
-    logger.info("Copybook file count: %s", len(COPYBOOK_PATHS))
-
-    for index, copybook_path in enumerate(COPYBOOK_PATHS, start=1):
-        copybook_file = LocalUploadedFile(copybook_path)
-        copybook_text = file_loader.read_uploaded_text(copybook_file)
-        copybook_text_parts.append(copybook_text)
-
-        diagnostics.append(f"Copybook {index}: {copybook_path}")
-        diagnostics.append(f"Copybook {index} text length: {len(copybook_text)}")
-        logger.info("Copybook %s: %s", index, copybook_path)
-        logger.info("Copybook %s text length: %s", index, len(copybook_text))
-
-    copybook_text = "\n".join(copybook_text_parts)
-
-    if copybook_text.strip():
-        try:
-            copybook_fields = copybook_parser.parse(
-                text=copybook_text,
-                source_label="Copybook files",
-            )
-        except TypeError:
-            copybook_fields = copybook_parser.parse(copybook_text)
-    else:
-        copybook_fields = []
-
-    diagnostics.append(f"Copybook total fields: {len(copybook_fields)}")
-    logger.info("Copybook total fields: %s", len(copybook_fields))
-
-    if hasattr(copybook_parser, "diagnostics"):
-        diagnostics.extend(copybook_parser.diagnostics)
-
-    source_file = LocalUploadedFile(IDMS_COBOL_SOURCE_PATH)
-    idms_cobol_text = file_loader.read_uploaded_text(source_file)
-
-    diagnostics.append(f"IDMS COBOL source file: {IDMS_COBOL_SOURCE_PATH}")
-    diagnostics.append(f"IDMS COBOL source text length: {len(idms_cobol_text)}")
-    logger.info("IDMS COBOL source file: %s", IDMS_COBOL_SOURCE_PATH)
-    logger.info("IDMS COBOL source text length: %s", len(idms_cobol_text))
-
-    return (
-        sheet_rows,
-        dclgen_columns,
-        copybook_fields,
-        idms_cobol_text,
-        diagnostics,
-    )
 
 
 def run_conversion() -> None:
-    validate_inputs()
+    validate_inputs(OUTPUT_DIR)
 
     logger = LoggerFactory.create_logger(
-        name="idms_db2_update_conversion",
+        name=UPDATE_LOGGER_NAME,
         logs_dir=LOGS_DIR,
     )
 
-    (
-        sheet_rows,
-        dclgen_columns,
-        copybook_fields,
-        idms_cobol_text,
-        diagnostics,
-    ) = load_inputs(logger)
+    sheet_rows, dclgen_columns, copybook_fields, diagnostics = load_shared_inputs(
+        logger
+    )
 
-    service = ConversionService()
+    program_files = selected_program_paths()
 
-    result = service.convert(
-        ConversionInput(
-            sheet_mapping_rows=sheet_rows,
+    print("")
+    print(HEADER_UPDATE_BATCH_SUMMARY)
+    print(RULE_UPDATE_BATCH_SUMMARY)
+    print(BATCH_PROGRAM_FOLDER_TEMPLATE.format(value=DEFAULT_UPDATE_PROGRAM_DIR))
+    print(BATCH_PROGRAM_COUNT_TEMPLATE.format(value=len(program_files)))
+    print(BATCH_OUTPUT_FOLDER_TEMPLATE.format(value=OUTPUT_DIR))
+
+    for program_path in program_files:
+        convert_one_program(
+            program_path=program_path,
+            sheet_rows=sheet_rows,
             dclgen_columns=dclgen_columns,
             copybook_fields=copybook_fields,
-            idms_cobol_text=idms_cobol_text,
-            target_program_id=TARGET_PROGRAM_ID,
-            auto_fix_pic_length_mismatches=AUTO_FIX_PIC_LENGTH_MISMATCHES,
+            shared_diagnostics=diagnostics,
+            output_dir=OUTPUT_DIR,
+            project_root=PROJECT_ROOT,
+            src_dir=SRC_DIR,
+            logger=logger,
         )
-    )
-
-    date_time = datetime.now().strftime("%d-%m-%Y_%H%M%S")
-    code_name = IDMS_COBOL_SOURCE_PATH.stem
-    output_cobol_path = OUTPUT_DIR / f"{code_name}_{date_time}.cbl"
-
-    output_cobol_path.write_text(
-        result.converted_cobol or "",
-        encoding="utf-8",
-    )
-
-    logger.info("DB2 COBOL generation completed.")
-    logger.info("Output file created: %s", output_cobol_path)
-
-    print("DB2 COBOL generation completed.")
-    print(f"Output file created: {output_cobol_path}")
-    print("")
-    print("Input Summary")
-    print("")
-    print(f"Project Root       : {PROJECT_ROOT}")
-    print(f"SRC Directory      : {SRC_DIR}")
-    print(f"Sheet Mapping Rows : {len(sheet_rows)}")
-    print(f"DCLGEN Columns     : {len(dclgen_columns)}")
-    print(f"Copybook Fields    : {len(copybook_fields)}")
-    print(f"COBOL Text Length  : {len(idms_cobol_text)}")
-    print(f"Target PROGRAM-ID  : {TARGET_PROGRAM_ID}")
-
-    print("")
-    print("Selected Input Files")
-    print("")
-    print(f"Sheet Mapping      : {SHEET_MAPPING_PATH}")
-    print(f"IDMS COBOL Source  : {IDMS_COBOL_SOURCE_PATH}")
-
-    print("DCLGEN Files:")
-    for path in DCLGEN_PATHS:
-        print(f" - {path}")
-
-    if COPYBOOK_PATHS:
-        print("Copybook Files:")
-        for path in COPYBOOK_PATHS:
-            print(f" - {path}")
-    else:
-        print("Copybook Files     : None")
-
-    print("")
-    print("Validation Messages")
-    print("")
-
-    if result.validation_messages:
-        for message in result.validation_messages:
-            print(f"- {message}")
-            logger.warning(message)
-    else:
-        print("No validation messages.")
-
-    print("")
-    print("Diagnostics")
-    print("")
-
-    for diagnostic in diagnostics:
-        print(f"- {diagnostic}")
-        logger.info(diagnostic)
 
 
 if __name__ == "__main__":

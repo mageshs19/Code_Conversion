@@ -7,46 +7,28 @@ Responsibilities:
 - Split IF statements with AND/OR safely.
 - Split generic long statements by word boundaries.
 - Keep each body within columns 8-72.
+
+Regex patterns live in patterns/fixed_format_patterns.py; layout constants and
+statement tokens in rules/fixed_format_rules.py.
 """
 
 from __future__ import annotations
 
-import re
-
-
-try:
-    from patterns.fixed_format_patterns import (
-        BOOLEAN_OPERATOR_END_PATTERN,
-        IF_BOOLEAN_SPLIT_PATTERN,
-        MOVE_STATEMENT_PATTERN,
-    )
-except Exception:
-    BOOLEAN_OPERATOR_END_PATTERN = re.compile(
-        r"\b(?:AND|OR)\s*$",
-        flags=re.IGNORECASE,
-    )
-
-    IF_BOOLEAN_SPLIT_PATTERN = re.compile(
-        r"(\s+AND\s+|\s+OR\s+)",
-        flags=re.IGNORECASE,
-    )
-
-    MOVE_STATEMENT_PATTERN = re.compile(
-        r"^MOVE\s+(?P<src>.+?)\s+TO\s+(?P<tgt>.+?\.?)$",
-        flags=re.IGNORECASE,
-    )
-
-
-try:
-    from rules.fixed_format_rules import (
-        BODY_WIDTH,
-        COMMENT_INDICATOR,
-        PAGE_INDICATOR,
-    )
-except Exception:
-    BODY_WIDTH = 65
-    COMMENT_INDICATOR = "*"
-    PAGE_INDICATOR = "/"
+from patterns.fixed_format_patterns import (
+    BOOLEAN_OPERATOR_END_PATTERN,
+    IF_BOOLEAN_SPLIT_PATTERN,
+    MOVE_STATEMENT_PATTERN,
+)
+from rules.fixed_format_rules import (
+    BODY_WIDTH,
+    BOOLEAN_OPERATOR_WORDS,
+    COMMENT_INDICATOR,
+    PAGE_INDICATOR,
+    PROCEDURE_DIVISION_NAME,
+    WRAP_IF_PREFIX,
+    WRAP_MOVE_PREFIX,
+    WRAP_TO_PREFIX,
+)
 
 
 class FixedFormatWrapper:
@@ -73,19 +55,11 @@ class FixedFormatWrapper:
             previous_procedure_indent=previous_procedure_indent,
         )
 
-    def wrap_comment_body(
-        self,
-        text: str,
-    ) -> list[str]:
+    def wrap_comment_body(self, text: str) -> list[str]:
         clean = str(text or "").strip()
-
         if not clean:
             return [""]
-
-        return self.wrap_by_words(
-            text=clean,
-            continuation_indent="",
-        )
+        return self.wrap_by_words(text=clean, continuation_indent="")
 
     def wrap_cobol_body(
         self,
@@ -99,28 +73,16 @@ class FixedFormatWrapper:
 
         indent = self.leading_spaces(
             raw,
-            default=" " if current_division == "PROCEDURE" else "",
+            default=" " if current_division == PROCEDURE_DIVISION_NAME else "",
         )
-
         if inside_exec_sql:
-            indent = self.leading_spaces(
-                raw,
-                default=" ",
-            )
+            indent = self.leading_spaces(raw, default=" ")
 
-        if_lines = self.wrap_if_statement(
-            logical=logical,
-            indent=indent,
-        )
-
+        if_lines = self.wrap_if_statement(logical=logical, indent=indent)
         if if_lines:
             return if_lines
 
-        move_lines = self.wrap_move_statement(
-            logical=logical,
-            indent=indent,
-        )
-
+        move_lines = self.wrap_move_statement(logical=logical, indent=indent)
         if move_lines:
             return move_lines
 
@@ -129,18 +91,13 @@ class FixedFormatWrapper:
             continuation_indent=indent + " ",
         )
 
-    def wrap_if_statement(
-        self,
-        logical: str,
-        indent: str,
-    ) -> list[str]:
+    def wrap_if_statement(self, logical: str, indent: str) -> list[str]:
         text = str(logical or "").strip()
 
-        if not text.upper().startswith("IF "):
+        if not text.upper().startswith(WRAP_IF_PREFIX):
             return []
 
         split_result = self.split_condition_on_boolean_operator(text)
-
         if not split_result:
             return self.wrap_by_words(
                 text=indent + text,
@@ -148,7 +105,6 @@ class FixedFormatWrapper:
             )
 
         left_part, operator, right_part = split_result
-
         first_line = f"{indent}{left_part.rstrip()}"
         second_line = f"{indent}{operator.strip().upper()} {right_part.strip()}"
 
@@ -158,15 +114,10 @@ class FixedFormatWrapper:
         )
 
     def split_condition_on_boolean_operator(
-        self,
-        logical: str,
+        self, logical: str
     ) -> tuple[str, str, str] | None:
         text = str(logical or "").strip()
-
-        tokens = IF_BOOLEAN_SPLIT_PATTERN.split(
-            text,
-            maxsplit=1,
-        )
+        tokens = IF_BOOLEAN_SPLIT_PATTERN.split(text, maxsplit=1)
 
         if len(tokens) < 3:
             return None
@@ -180,21 +131,16 @@ class FixedFormatWrapper:
 
         return left_part, operator, right_part
 
-    def wrap_move_statement(
-        self,
-        logical: str,
-        indent: str,
-    ) -> list[str]:
+    def wrap_move_statement(self, logical: str, indent: str) -> list[str]:
         match = MOVE_STATEMENT_PATTERN.match(str(logical or "").strip())
-
         if not match:
             return []
 
         src = match.group("src").strip()
         tgt = match.group("tgt").strip()
 
-        first = f"{indent}MOVE {src}"
-        second = f"{indent}TO {tgt}"
+        first = f"{indent}{WRAP_MOVE_PREFIX}{src}"
+        second = f"{indent}{WRAP_TO_PREFIX}{tgt}"
 
         if len(first) <= BODY_WIDTH and len(second) <= BODY_WIDTH:
             return [first, second]
@@ -204,20 +150,12 @@ class FixedFormatWrapper:
             continuation_indent=indent + " ",
         )
 
-    def wrap_by_words(
-        self,
-        text: str,
-        continuation_indent: str,
-    ) -> list[str]:
+    def wrap_by_words(self, text: str, continuation_indent: str) -> list[str]:
         raw = str(text or "").rstrip()
-
         if len(raw) <= BODY_WIDTH:
             return [raw]
 
-        leading_indent = self.leading_spaces(
-            raw,
-            default="",
-        )
+        leading_indent = self.leading_spaces(raw, default="")
         content = raw.strip()
         words = content.split()
 
@@ -248,9 +186,7 @@ class FixedFormatWrapper:
         )
 
     def force_lines_to_body_width(
-        self,
-        lines: list[str],
-        continuation_indent: str,
+        self, lines: list[str], continuation_indent: str
     ) -> list[str]:
         output: list[str] = []
 
@@ -261,27 +197,21 @@ class FixedFormatWrapper:
                 output.append(text)
                 continue
 
-            indent = self.leading_spaces(
-                text,
-                default=continuation_indent,
-            )
+            indent = self.leading_spaces(text, default=continuation_indent)
             available_width = max(1, BODY_WIDTH - len(indent))
             content = text.strip()
 
             while content:
                 part = content[:available_width].rstrip()
-
                 if not part:
                     part = content[:available_width]
-
                 output.append(indent + part)
                 content = content[len(part):].strip()
 
         return self.repair_boolean_operator_only_lines(output)
 
     def repair_boolean_operator_only_lines(
-        self,
-        lines: list[str],
+        self, lines: list[str]
     ) -> list[str]:
         output: list[str] = []
         index = 0
@@ -290,17 +220,13 @@ class FixedFormatWrapper:
             current = str(lines[index] or "").rstrip()
             current_stripped = current.strip().upper()
 
-            if current_stripped in {"AND", "OR"} and index + 1 < len(lines):
+            if current_stripped in BOOLEAN_OPERATOR_WORDS and index + 1 < len(lines):
                 next_line = str(lines[index + 1] or "").rstrip()
                 next_stripped = next_line.strip()
 
                 if next_stripped:
-                    indent = self.leading_spaces(
-                        current,
-                        default=" ",
-                    )
+                    indent = self.leading_spaces(current, default=" ")
                     repaired = f"{indent}{current_stripped} {next_stripped}"
-
                     if len(repaired) <= BODY_WIDTH:
                         output.append(repaired)
                         index += 2
@@ -311,35 +237,23 @@ class FixedFormatWrapper:
 
         return output
 
-    def ends_with_boolean_operator(
-        self,
-        body: str,
-    ) -> bool:
+    def ends_with_boolean_operator(self, body: str) -> bool:
         return bool(
-            BOOLEAN_OPERATOR_END_PATTERN.search(
-                str(body or "").strip(),
-            )
+            BOOLEAN_OPERATOR_END_PATTERN.search(str(body or "").strip())
         )
 
-    def is_comment_or_page_line(
-        self,
-        logical: str,
-    ) -> bool:
+    def is_comment_or_page_line(self, logical: str) -> bool:
         stripped = str(logical or "").strip()
-        return stripped.startswith("*") or stripped.startswith("/")
+        return stripped.startswith(COMMENT_INDICATOR) or stripped.startswith(
+            PAGE_INDICATOR
+        )
 
-    def leading_spaces(
-        self,
-        text: str,
-        default: str = "",
-    ) -> str:
+    def leading_spaces(self, text: str, default: str = "") -> str:
         value = str(text or "")
-
         if not value:
             return default
 
         count = len(value) - len(value.lstrip(" "))
-
         if count <= 0:
             return default
 

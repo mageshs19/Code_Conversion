@@ -258,3 +258,57 @@ AREA_B_DATA_LEVELS = {
 "49",
 "88",
 }
+
+# --- Fixed-format line parser statement starters (appended) ---
+# COBOL statement starters used to confirm a trailing 8-digit token is a
+# right sequence number rather than part of the body. Text only.
+COBOL_STATEMENT_STARTERS = (
+    "ACCEPT ",
+    "ADD ",
+    "CALL ",
+    "CLOSE ",
+    "COMPUTE ",
+    "CONTINUE",
+    "DISPLAY ",
+    "ELSE",
+    "END-",
+    "EVALUATE ",
+    "EXEC ",
+    "EXIT",
+    "IF ",
+    "INITIALIZE ",
+    "MOVE ",
+    "OPEN ",
+    "PERFORM ",
+    "READ ",
+    "SET ",
+    "STOP ",
+    "TO ",
+    "WHEN ",
+    "WRITE ",
+)
+
+# Marker used when detecting a generated right sequence (00000010 style).
+RIGHT_SEQUENCE_GENERATED_PREFIX = "0000"
+
+# --- Division name + non-area-A indicator set (appended) ---
+# COBOL division that receives Area-B procedure indentation.
+PROCEDURE_DIVISION_NAME = "PROCEDURE"
+
+# Indicators whose body must be preserved verbatim (not Area A/B reformatted):
+# comment (*), page (/), debug (D), and continuation (-).
+PRESERVE_VERBATIM_INDICATORS = {
+    COMMENT_INDICATOR,
+    PAGE_INDICATOR,
+    DEBUG_INDICATOR,
+    CONTINUATION_INDICATOR,
+}
+# --- Lowercase debug indicator (appended) ---
+# Some inputs use a lowercase 'd' in the indicator column; normalize to D.
+DEBUG_INDICATOR_LOWER = "d"
+# --- Fixed-format wrapper tokens (appended) ---
+# COBOL statement prefixes and boolean operators used by the body wrapper.
+WRAP_IF_PREFIX = "IF "
+WRAP_MOVE_PREFIX = "MOVE "
+WRAP_TO_PREFIX = "TO "
+BOOLEAN_OPERATOR_WORDS = frozenset({"AND", "OR"})
