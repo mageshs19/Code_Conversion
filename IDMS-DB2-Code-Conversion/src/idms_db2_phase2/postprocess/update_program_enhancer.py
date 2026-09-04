@@ -202,6 +202,9 @@ class UpdateProgramEnhancer:
             output,
             diagnostics,
         )
+        output = self.storage_include_manager.ensure_sqlerror_paragraph(   # ADDED
+            output, diagnostics,
+        )
 
         diagnostics.append(UPDATE_RESTART_DIAGNOSTICS["end"])
 

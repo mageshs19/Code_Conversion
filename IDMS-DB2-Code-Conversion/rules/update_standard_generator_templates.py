@@ -57,7 +57,6 @@ READ_FLAT_FILE_TEMPLATE = """READ-FLAT-FILE.
     END-READ.
 
     IF {record}-NOT-EOF
-    THEN
         ADD +1 TO {commit_counter}
         ADD +1 TO {input_counter}
         MOVE {record} TO {input_save_area}
@@ -241,3 +240,17 @@ RESTART_SQL_TEMPLATE = """{select}.
 {abend}.
 
     {abend_call}."""
+
+# LOCATION: rules/update_standard_generator_templates.py
+# ACTION: APPEND
+
+# Standard SQLERROR paragraph. Every generated "WHEN OTHER" branch does
+# "PERFORM SQLERROR", so this target paragraph must be declared once at the
+# end of PROCEDURE DIVISION. Minimal manual-standard body: report location +
+# SQLCODE, then abend via USERABEN.
+SQLERROR_PARAGRAPH_TEMPLATE = [
+    "SQLERROR.",
+    "     DISPLAY 'SQL ERROR AT : ' SQL-LOCATION.",
+    "     DISPLAY 'SQLCODE      : ' SQLCODE.",
+    "     CALL USERABEN.",
+]

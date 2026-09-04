@@ -49,3 +49,35 @@ PROCEDURE_DIVISION_LINE_PATTERN = re.compile(
     r"^\s*(?:\d{6}\s*)?PROCEDURE\s+DIVISION\b.*\.\s*(?:\d{8})?\s*$",
     flags=re.IGNORECASE,
 )
+
+# --- Legacy IDMS abend/checkpoint marker removal (generic, by '##&&' prefix) ---
+# These 77-level markers (e.g. STOP01 VALUE '##&&...') are IDMS-era abend
+# labels with no DB2 meaning. Detected by the '##&&' literal prefix, never by
+# a hardcoded program-specific field name.
+
+# A 77-level header that declares only a PIC X(nn) with NO inline VALUE.
+# (Wrapped case: the VALUE lives on the following line.)
+
+
+# APPEND to rules/update_restart_rules.py
+LEGACY_ABEND_MARKER_LITERAL_PREFIX = "##&&"
+
+
+# APPEND to patterns/update_storage_include_patterns.py
+LEGACY_ABEND_MARKER_77_ONELINE_PATTERN = re.compile(
+    r"^\s*(?:\d{6}\s*)?77\s+[A-Z0-9-]+\s+PIC\s+X$\d+$\s+"
+    r"VALUE\s+'##&&[^']*'\s*\.?\s*(?:\d{8})?\s*$",
+    flags=re.IGNORECASE,
+)
+LEGACY_ABEND_MARKER_VALUE_LINE_PATTERN = re.compile(
+    r"^\s*(?:\d{6}\s*)?VALUE\s+'##&&[^']*'\s*\.?\s*(?:\d{8})?\s*$",
+    flags=re.IGNORECASE,
+)
+LEGACY_ABEND_MARKER_77_HEADER_NO_VALUE_PATTERN = re.compile(
+    r"^\s*(?:\d{6}\s*)?77\s+[A-Z0-9-]+\s+PIC\s+X$\d+$\s*(?:\d{8})?\s*$",
+    flags=re.IGNORECASE,
+)
+LEGACY_ABEND_MARKER_77_HEADER_NAMED_PATTERN = re.compile(
+    r"^\s*(?:\d{6}\s*)?77\s+(?P<name>[A-Z0-9-]+)\s+PIC\s+X$\d+$\s*(?:\d{8})?\s*$",
+    flags=re.IGNORECASE,
+)

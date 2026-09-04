@@ -40,6 +40,9 @@ From the project root:
 set PYTHONPATH=src
 python -m streamlit run src/idms_db2_phase2/app.py --server.port 8502
 
+$env:PYTHONPATH = "src"
+python src\idms_db2_phase2\testing\run_update.py
+
 python src\idms_db2_phase2\testing\run_retrieval.py
 python src\idms_db2_phase2\testing\run_update.py
 

@@ -86,6 +86,7 @@ UPDATE_LEGACY_RESTART_WS_NAMES = (
     "CTR-REC",
     "SW-EOF",
     "SW-RECAB",
+    "STOP01",
 )
 
 UPDATE_STANDARD_DATE_WS_LINES = [
@@ -316,3 +317,4 @@ RESTART_PAYLOAD_TEXT_SPEC = (
     "payload_text_fallback",
     "text",
 )
+LEGACY_ABEND_MARKER_LITERAL_PREFIX = "##&&"
