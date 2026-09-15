@@ -42,3 +42,15 @@ INNER_IF_LOOKAHEAD = 12    # rows scanned for the inner IF SQLCODE = 100
 
 # --- Comment prefix set (for skip decisions) ---
 COMMENT_PREFIXES = ("*", "/")
+
+# COBOL sentence terminator.
+#
+# The removed outer "END-IF." carried the sentence period. When the wrapper
+# is stripped, that terminator must be transferred to the recovered inner
+# body, or the paragraph runs into the next paragraph header.
+PERIOD = "."
+
+DIAG_PERIOD_RESTORED = (
+    "Cleanup: restored sentence terminator lost with the removed "
+    "SQLCODE wrapper."
+)

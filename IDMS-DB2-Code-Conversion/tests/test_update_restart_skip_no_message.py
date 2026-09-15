@@ -23,3 +23,27 @@ def test_manual_redesign_message_suppressed_by_default():
 def test_message_flag_is_opt_in():
     composer = UpdateRestartSkipComposer()
     assert composer.EMIT_MANUAL_REDESIGN_MESSAGE is False
+
+
+# --- Manual-redesign diagnostic --------------------------------------
+#
+# When a restart or control record has no usable Sheet Mapping entry,
+# UpdateRestartSkipComposer replaces the generated block with a
+# manual-redesign comment and CONTINUE. That replacement is visible in
+# the generated COBOL and is the authoritative signal.
+#
+# Emitting a matching VALIDATION MESSAGE as well is opt-in, because it
+# repeats on every run for a condition that is an input-data gap rather
+# than a converter defect, and drowns out genuine diagnostics.
+#
+# Consumed by:
+#   src/idms_db2_phase2/composers/update_restart_skip_composer.py
+#
+# Mirrored onto the composer as a class attribute so callers and tests
+# read it from one place and the two cannot drift apart.
+EMIT_MANUAL_REDESIGN_MESSAGE = False
+
+MANUAL_REDESIGN_MESSAGE_TEMPLATE = (
+    "Update restart skip: {record} has no usable Sheet Mapping entry; "
+    "block replaced with a manual-redesign comment."
+)

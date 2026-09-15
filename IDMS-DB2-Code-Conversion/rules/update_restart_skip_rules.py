@@ -39,8 +39,11 @@ REPLACEMENT_BLOCK_TEMPLATES = (
 
 # Advisory message (suppressed by default; the update post-process now
 # generates the real DB2 restart-table flow, so this advisory is obsolete).
+# read it from one place and the two cannot drift apart.
 EMIT_MANUAL_REDESIGN_MESSAGE = False
+
 MANUAL_REDESIGN_MESSAGE_TEMPLATE = (
-    "Update restart/control skip: restart/control record "
-    "{record_name} requires manual DB2 redesign."
+    "Update restart skip: {record} has no usable Sheet Mapping entry; "
+    "block replaced with a manual-redesign comment."
 )
+

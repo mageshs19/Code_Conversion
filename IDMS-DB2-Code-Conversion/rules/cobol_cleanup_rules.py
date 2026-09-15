@@ -88,3 +88,105 @@ UPDATE_QUERYNO = "442"
 # When True, generated UPDATE uses EVALUATE SQLCODE (manual standard) instead
 # of the older IF SQLCODE NOT = 0 form.
 USE_EVALUATE_SQLCODE = True
+
+# --- Output write placement (appended) ------------------------------------
+#
+# A guarded output WRITE left inside the per-row paragraph fires once per
+# fetched child row instead of once per parent row. Manual reference places
+# it in the parent paragraph after the child cursor CLOSE, wrapped in the
+# early-stop guard.
+ENFORCE_OUTPUT_WRITE_AFTER_CHILD_LOOP = True
+
+FETCH_PARAGRAPH_CURSOR_SEPARATOR = "-FETCH-"
+NESTED_INDENT_STEP = "   "
+WHEN_ZERO_PERFORM_SCAN_LIMIT = 5
+OUTPUT_WRITE_MOVE_PASS_LIMIT = 8
+
+EARLY_STOP_FLAG = "SW-STATUS-D"
+EARLY_STOP_VALUE = "'Y'"
+EARLY_STOP_GUARD_OPEN = "IF NOT {flag} = {value}"
+EARLY_STOP_GUARD_CLOSE = "END-IF"
+
+# Single-word lines that end in a period but are not paragraph headers.
+NON_PARAGRAPH_SINGLE_WORDS = frozenset({
+    "CONTINUE", "END-EXEC", "END-EVALUATE", "END-IF", "END-PERFORM",
+    "END-READ", "END-SEARCH", "END-STRING", "END-WRITE", "EXIT",
+    "GOBACK", "STOP",
+})
+
+CLEANUP_MESSAGES["output_write_moved"] = (
+    "Cleanup: moved output write block from {source} to {target} after the "
+    "child cursor loop."
+)
+
+
+# =========================================================================
+# APPENDED: constants for the generated-COBOL safety cleanup passes
+#
+# Consumed by:
+#   composers/cleanup/output_write_placement_cleanup.py
+#   composers/cleanup/paragraph_terminator_cleanup.py
+#
+# Constants only. No regex, no runtime logic, no program / record / table /
+# cursor / host variable names.
+# =========================================================================
+
+# --- Paragraph termination -----------------------------------------------
+#
+# A paragraph whose last sentence carries no period runs into the next
+# paragraph header and the compiler rejects the program. Any pass that
+# inserts or lifts a block can leave that state behind.
+ENFORCE_PARAGRAPH_TERMINATION = True
+PARAGRAPH_TERMINATOR = "."
+
+# Single-word lines that end in a period but are NOT paragraph headers.
+# Declared here so the cleanup family has no cross-rules dependency.
+NON_PARAGRAPH_SINGLE_WORDS = frozenset({
+    "CONTINUE",
+    "END-EXEC",
+    "END-EVALUATE",
+    "END-IF",
+    "END-PERFORM",
+    "END-READ",
+    "END-SEARCH",
+    "END-STRING",
+    "END-WRITE",
+    "EXIT",
+    "GOBACK",
+    "STOP",
+})
+
+# --- Output write placement ----------------------------------------------
+#
+# Manual reference shape:
+#
+#     PERFORM <close-child>
+#
+#     IF NOT SW-STATUS-D = 'Y'
+#        IF <status-field> = '<value>'
+#           PERFORM <write-paragraph>
+#        END-IF
+#     END-IF.
+#
+# A guarded WRITE left inside the per-row paragraph fires once per fetched
+# child row instead of once per parent row.
+ENFORCE_OUTPUT_WRITE_AFTER_CHILD_LOOP = True
+
+FETCH_PARAGRAPH_CURSOR_SEPARATOR = "-FETCH-"
+NESTED_INDENT_STEP = "   "
+WHEN_ZERO_PERFORM_SCAN_LIMIT = 5
+OUTPUT_WRITE_MOVE_PASS_LIMIT = 8
+
+EARLY_STOP_FLAG = "SW-STATUS-D"
+EARLY_STOP_VALUE = "'Y'"
+EARLY_STOP_GUARD_OPEN = "IF NOT {flag} = {value}"
+EARLY_STOP_GUARD_CLOSE = "END-IF"
+
+# --- Diagnostics ----------------------------------------------------------
+CLEANUP_MESSAGES["output_write_moved"] = (
+    "Cleanup: moved output write block from {source} to {target} after the "
+    "child cursor loop."
+)
+CLEANUP_MESSAGES["paragraph_terminated"] = (
+    "Cleanup: closed unterminated sentence in paragraph {paragraph}."
+)

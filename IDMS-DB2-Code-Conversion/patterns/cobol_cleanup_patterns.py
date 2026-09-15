@@ -202,3 +202,137 @@ RESIDUAL_IDMS_COMMENT_CONTINUATION_PATTERN = re.compile(
     r"^\s*\*\s*(?!DB2:)(?!DB2-KEEP)(?![-*])\S",
     flags=re.IGNORECASE,
 )
+
+# --- Output write placement patterns (appended) ---------------------------
+#
+# Regex only. No business rules, program names, paragraph names, record
+# names, table names, cursor names or host variables.
+
+PARAGRAPH_HEADER_PATTERN = re.compile(
+    r"^(?P<name>[A-Z0-9][A-Z0-9-]*)\.$",
+    flags=re.IGNORECASE,
+)
+
+IF_START_PATTERN = re.compile(
+    r"^IF\b",
+    flags=re.IGNORECASE,
+)
+
+END_IF_PATTERN = re.compile(
+    r"^END-IF\.?$",
+    flags=re.IGNORECASE,
+)
+
+WRITE_STATEMENT_PATTERN = re.compile(
+    r"^WRITE\s+[A-Z0-9][A-Z0-9-]*",
+    flags=re.IGNORECASE,
+)
+
+WHEN_ZERO_PATTERN = re.compile(
+    r"^WHEN\s+ZERO\s*$",
+    flags=re.IGNORECASE,
+)
+
+# PERFORM of any generated cursor paragraph, e.g. PERFORM 830-CLOSE-DZEVEFC1
+PERFORM_CURSOR_PARAGRAPH_PATTERN = re.compile(
+    r"^PERFORM\s+\d{3}-(?:OPEN|FETCH|CLOSE)-[A-Z0-9][A-Z0-9-]*\b",
+    flags=re.IGNORECASE,
+)
+
+# PERFORM of the CLOSE paragraph of one cursor.
+PERFORM_CLOSE_CURSOR_PATTERN = re.compile(
+    r"^PERFORM\s+(?P<number>\d{3})-CLOSE-(?P<cursor>[A-Z0-9][A-Z0-9-]*)"
+    r"\s*\.?\s*$",
+    flags=re.IGNORECASE,
+)
+
+# PERFORM of a business paragraph (no UNTIL, no TIMES, no THRU).
+PERFORM_PARAGRAPH_PATTERN = re.compile(
+    r"^PERFORM\s+(?P<paragraph>[A-Z0-9][A-Z0-9-]*)\s*\.?\s*$",
+    flags=re.IGNORECASE,
+)
+# --- Paragraph structure patterns (appended) ------------------------------
+
+PARAGRAPH_HEADER_PATTERN = re.compile(
+    r"^(?P<name>[A-Z0-9][A-Z0-9-]*)\.$",
+    flags=re.IGNORECASE,
+)
+
+SECTION_HEADER_PATTERN = re.compile(
+    r"^(?P<name>[A-Z0-9][A-Z0-9-]*)\s+SECTION\s*\.$",
+    flags=re.IGNORECASE,
+)
+
+PROCEDURE_DIVISION_LINE_PATTERN = re.compile(
+    r"^PROCEDURE\s+DIVISION\b",
+    flags=re.IGNORECASE,
+)
+
+# =========================================================================
+# APPENDED: patterns for the generated-COBOL safety cleanup passes
+#
+# Consumed by:
+#   composers/cleanup/output_write_placement_cleanup.py
+#   composers/cleanup/paragraph_terminator_cleanup.py
+#
+# Regex only. No business rules, no program / paragraph / record / table /
+# cursor / host variable names.
+# =========================================================================
+
+# --- Paragraph structure --------------------------------------------------
+
+PARAGRAPH_HEADER_PATTERN = re.compile(
+    r"^(?P<name>[A-Z0-9][A-Z0-9-]*)\.$",
+    flags=re.IGNORECASE,
+)
+
+SECTION_HEADER_PATTERN = re.compile(
+    r"^(?P<name>[A-Z0-9][A-Z0-9-]*)\s+SECTION\s*\.$",
+    flags=re.IGNORECASE,
+)
+
+PROCEDURE_DIVISION_LINE_PATTERN = re.compile(
+    r"^PROCEDURE\s+DIVISION\b",
+    flags=re.IGNORECASE,
+)
+
+# --- Output write placement ----------------------------------------------
+
+IF_START_PATTERN = re.compile(
+    r"^IF\b",
+    flags=re.IGNORECASE,
+)
+
+END_IF_PATTERN = re.compile(
+    r"^END-IF\.?$",
+    flags=re.IGNORECASE,
+)
+
+WRITE_STATEMENT_PATTERN = re.compile(
+    r"^WRITE\s+[A-Z0-9][A-Z0-9-]*",
+    flags=re.IGNORECASE,
+)
+
+WHEN_ZERO_PATTERN = re.compile(
+    r"^WHEN\s+ZERO\s*$",
+    flags=re.IGNORECASE,
+)
+
+# PERFORM of any generated cursor paragraph, e.g. PERFORM 830-CLOSE-DZEVEFC1
+PERFORM_CURSOR_PARAGRAPH_PATTERN = re.compile(
+    r"^PERFORM\s+\d{3}-(?:OPEN|FETCH|CLOSE)-[A-Z0-9][A-Z0-9-]*\b",
+    flags=re.IGNORECASE,
+)
+
+# PERFORM of the CLOSE paragraph of one cursor.
+PERFORM_CLOSE_CURSOR_PATTERN = re.compile(
+    r"^PERFORM\s+(?P<number>\d{3})-CLOSE-(?P<cursor>[A-Z0-9][A-Z0-9-]*)"
+    r"\s*\.?\s*$",
+    flags=re.IGNORECASE,
+)
+
+# PERFORM of a business paragraph (no UNTIL, no TIMES, no THRU).
+PERFORM_PARAGRAPH_PATTERN = re.compile(
+    r"^PERFORM\s+(?P<paragraph>[A-Z0-9][A-Z0-9-]*)\s*\.?\s*$",
+    flags=re.IGNORECASE,
+)

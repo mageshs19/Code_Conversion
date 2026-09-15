@@ -77,3 +77,5 @@ FINAL_FIX_AREA_B_INDENT = "    "
 FINAL_FIX_NESTED_INDENT = "    "
 
 # Reuse the shared NON_PARAGRAPH_SINGLE_WORDS from rules/cobol_statement_rules.py.
+
+AREA_B_CONTINUATION_BODY_INDENT = "    "   # one level past the statement

@@ -6,6 +6,14 @@ from __future__ import annotations
 # no COBOL literals. Only dynamic values (record, field, table, host names)
 # are substituted at fill time. No program/record/table names are hardcoded;
 # those arrive as .format() kwargs from resolved metadata.
+#
+# Layout rules enforced here:
+# - Area A starts at column 8, Area B at column 12. A template line's leading
+#   spaces are relative to column 8, so a level-02 item needs 4 spaces.
+# - Every EXEC SQL block is preceded by a MOVE to SQL-LOCATION, so a failure
+#   reports the paragraph that actually failed (CHK-20.07).
+# - No period terminates a statement inside EVALUATE. Only END-EVALUATE
+#   carries one (cobol_standards.ENFORCE_NO_PERIOD_IN_EVALUATE).
 
 # --- Numeric / literal constants used in generated COBOL ---
 RESTART_LENGTH_BASE = 15            # added to record length for WS-RESTART-LEN
@@ -18,6 +26,7 @@ CS_PROGRAM_FIELD = "CS-PROGRAM"
 DA_DD_MM_CCYY_FIELD = "DA-DD-MM-CCYY"
 COMMIT_COUNTER_LEGACY = "WS-TELLER"
 SQL_ERROR_PARAGRAPH = "SQLERROR"
+SQL_LOCATION_FIELD = "SQL-LOCATION"
 ABEND_CALL_STATEMENT = "CALL USERABEN"
 
 # --- Display strings ---
@@ -29,22 +38,26 @@ COPYBOOK_INCLUDE_TEMPLATE = "COPY {include}."
 DCLGEN_INCLUDE_TEMPLATE = "EXEC SQL INCLUDE {include} END-EXEC."
 
 # --- Working-storage template ---
+#
+# Indentation is relative to column 8. Level 02 therefore needs 4 spaces to
+# land in Area B (column 12); 3 spaces put it at column 11, inside Area A.
+# Nested levels step by 3 (02 -> col 12, 03/88 -> col 15).
 WORKING_STORAGE_TEMPLATE = """01 {switch_group}.
-   02 SW-{record} PIC X VALUE '{eof_not}'.
-      88 {record}-NOT-EOF VALUE '{eof_not}'.
-      88 {record}-EOF     VALUE '{eof_set}'.
+    02 SW-{record}              PIC X  VALUE '{eof_not}'.
+       88 {record}-NOT-EOF             VALUE '{eof_not}'.
+       88 {record}-EOF                 VALUE '{eof_set}'.
 
 01 {help_group}.
-   02 {restart_record}.
-      03 {read_count}     PIC 9(15).
-      03 {restart_key}  PIC X({length}).
+    02 {restart_record}.
+       03 {read_count}          PIC 9(15).
+       03 {restart_key}         PIC X({length}).
 
-   02 {input_save_area} PIC X({length}).
+    02 {input_save_area}        PIC X({length}).
 
-   02 {commit_counter}         PIC 9(9) COMP-3 VALUE ZERO.
-   02 {input_counter} PIC 9(7) COMP-3 VALUE ZERO.
-   02 {update_counter}  PIC S9(11) COMP-3 VALUE +0.
-   02 {restart_len}    PIC 9(5) VALUE {restart_length}."""
+    02 {commit_counter}         PIC 9(9)  COMP-3 VALUE ZERO.
+    02 {input_counter}          PIC 9(7)  COMP-3 VALUE ZERO.
+    02 {update_counter}         PIC S9(11) COMP-3 VALUE +0.
+    02 {restart_len}            PIC 9(5)  VALUE {restart_length}."""
 
 # --- READ flat file template ---
 READ_FLAT_FILE_TEMPLATE = """READ-FLAT-FILE.
@@ -88,6 +101,10 @@ RESTART_CONTROL_TEMPLATE = """{control}.
     MOVE {commit_reset} TO {commit_counter_legacy}."""
 
 # --- Restart found template ---
+#
+# The counter MOVE sits AFTER END-PERFORM. Inside the loop it executed once
+# per skipped record and was overwritten every iteration; the final value was
+# correct only by coincidence.
 RESTART_FOUND_TEMPLATE = """{restart_found}.
 
     MOVE {payload_text_field} OF {host_record}
@@ -99,9 +116,9 @@ RESTART_FOUND_TEMPLATE = """{restart_found}.
     ELSE
         PERFORM {read_count} OF {restart_record} TIMES
             PERFORM READ-FLAT-FILE
-            MOVE {read_count} OF {restart_record}
-              TO {input_counter}
         END-PERFORM
+        MOVE {read_count} OF {restart_record}
+          TO {input_counter}
     END-IF."""
 
 # --- Write restart template ---
@@ -156,6 +173,8 @@ PROCESS_COMMIT_TEMPLATE = """{commit}.
 
     PERFORM {update}.
 
+    MOVE '{commit}' TO SQL-LOCATION.
+
     EXEC SQL
         COMMIT
     END-EXEC.
@@ -169,7 +188,13 @@ PROCESS_COMMIT_TEMPLATE = """{commit}.
     END-EVALUATE."""
 
 # --- Restart SQL template (SELECT / UPDATE / INSERT / ABEND) ---
+#
+# Each statement sets SQL-LOCATION first. Without it a restart failure
+# reports whatever location the previous business statement left behind,
+# sending the operator to the wrong paragraph (CHK-20.07).
 RESTART_SQL_TEMPLATE = """{select}.
+
+    MOVE '{select}' TO SQL-LOCATION.
 
     EXEC SQL
         SELECT {program_column}
@@ -203,6 +228,8 @@ RESTART_SQL_TEMPLATE = """{select}.
 
 {update}.
 
+    MOVE '{update}' TO SQL-LOCATION.
+
     EXEC SQL
         UPDATE {table_name}
            SET {payload_column} = :{host_record}.{payload_group}
@@ -223,6 +250,8 @@ RESTART_SQL_TEMPLATE = """{select}.
 
 {insert}.
 
+    MOVE '{insert}' TO SQL-LOCATION.
+
     EXEC SQL
         INSERT INTO {table_name}
         VALUES (:{host_record})
@@ -241,13 +270,14 @@ RESTART_SQL_TEMPLATE = """{select}.
 
     {abend_call}."""
 
-# LOCATION: rules/update_standard_generator_templates.py
-# ACTION: APPEND
-
 # Standard SQLERROR paragraph. Every generated "WHEN OTHER" branch does
 # "PERFORM SQLERROR", so this target paragraph must be declared once at the
 # end of PROCEDURE DIVISION. Minimal manual-standard body: report location +
 # SQLCODE, then abend via USERABEN.
+#
+# NOTE: SqlErrorGenerator.paragraph_block() emits a different body
+# (EXEC SQL INCLUDE SQLERROR END-EXEC). Two SQLERROR forms exist in the
+# codebase. See open decision D-1 and CHK-05.08.
 SQLERROR_PARAGRAPH_TEMPLATE = [
     "SQLERROR.",
     "     DISPLAY 'SQL ERROR AT : ' SQL-LOCATION.",

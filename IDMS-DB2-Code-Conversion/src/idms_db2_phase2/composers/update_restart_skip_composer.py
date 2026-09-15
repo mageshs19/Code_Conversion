@@ -18,7 +18,6 @@ from rules.update_restart_skip_rules import (
     RESTART_CONTROL_HINTS,
 )
 
-
 class UpdateRestartSkipComposer:
     """Cleans generated missing-mapping blocks for unmapped restart/control
     records.
@@ -35,9 +34,27 @@ class UpdateRestartSkipComposer:
     rules/update_restart_skip_rules.py.
     """
 
-    def __init__(self) -> None:
+    # Public mirror of rules.update_restart_skip_rules.
+    #
+    # The manual-redesign comment written into the generated COBOL is the
+    # authoritative signal. Repeating it as a validation message on every
+    # run adds noise for an input-data gap that is not a converter
+    # defect, so the diagnostic is opt-in.
+    #
+    # Read this attribute rather than importing the constant directly, so
+    # a per-run override is honoured.
+    EMIT_MANUAL_REDESIGN_MESSAGE = EMIT_MANUAL_REDESIGN_MESSAGE
+
+    def __init__(
+        self,
+        emit_manual_redesign_message: bool | None = None,
+    ) -> None:
         self.messages: list[str] = []
 
+        if emit_manual_redesign_message is not None:
+            self.EMIT_MANUAL_REDESIGN_MESSAGE = bool(
+                emit_manual_redesign_message
+            )
     def compose(self, text: str) -> str:
         self.messages = []
         if not text:
@@ -149,11 +166,23 @@ class UpdateRestartSkipComposer:
         return any(marker in combined for marker in MISSING_MAPPING_MARKERS)
 
     def _note_manual_redesign(self, record_name: str) -> None:
-        if not EMIT_MANUAL_REDESIGN_MESSAGE:
+        """Record that a restart block was replaced.
+
+        Suppressed by default. The generated COBOL already carries the
+        manual-redesign comment, which is the signal the COBOL team acts
+        on; the validation message is duplicate noise unless a run is
+        specifically auditing skipped records.
+        """
+        if not self.EMIT_MANUAL_REDESIGN_MESSAGE:
             return
-        self.messages.append(
-            MANUAL_REDESIGN_MESSAGE_TEMPLATE.format(record_name=record_name)
-        )
+
+        record = str(record_name or "").strip().upper()
+        if not record:
+            return
+
+        message = MANUAL_REDESIGN_MESSAGE_TEMPLATE.format(record=record)
+        if message not in self.messages:
+            self.messages.append(message)
 
     def _replacement_block(self, record_name: str) -> list[str]:
         return [
