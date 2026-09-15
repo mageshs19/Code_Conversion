@@ -117,13 +117,29 @@ class RecordRetrievalConversionCheck(Check):
     # ---- helpers ----------------------------------------------------
     @staticmethod
     def _location_set_before(view, block) -> bool:
+        """True when SQL-LOCATION is set within the look-back window.
+
+        Both move forms are accepted:
+
+            MOVE '710-OPEN-DZBEFFC1' TO SQL-LOCATION
+            MOVE 710                 TO SQL-LOCATION
+
+        The manual reference uses the bare paragraph number. Matching
+        only the quoted form failed every generated cursor paragraph
+        while the field was in fact being set correctly.
+        """
+        prefixes = getattr(
+            std,
+            "SQL_LOCATION_MOVE_PREFIXES",
+            (std.SQL_LOCATION_MOVE_PREFIX,),
+        )
         window = sql.lines_before(view, block, std.SQL_LOCATION_LOOKBACK)
+
         return any(
-            line.startswith(std.SQL_LOCATION_MOVE_PREFIX)
+            line.startswith(tuple(prefixes))
             and std.SQL_LOCATION_MOVE_SUFFIX in line
             for line in window
         )
-
     @staticmethod
     def _empty_paragraphs(view) -> list:
         """Paragraph headers immediately followed by another header."""

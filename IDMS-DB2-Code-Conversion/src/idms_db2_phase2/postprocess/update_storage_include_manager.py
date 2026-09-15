@@ -1,7 +1,11 @@
+# LOCATION: src/idms_db2_phase2/postprocess/update_storage_include_manager.py
+# ACTION: REPLACE ENTIRE FILE
+
 from __future__ import annotations
 
 import re
 
+from idms_db2_phase2.generators.sql_error_generator import SqlErrorGenerator
 from idms_db2_phase2.postprocess.cobol_update_standard_generator import (
     CobolUpdateStandardGenerator,
 )
@@ -22,13 +26,32 @@ from rules.update_restart_rules import (
     UPDATE_RESTART_DIAGNOSTICS,
 )
 from rules.update_standard_generator_templates import (
-    SQLERROR_PARAGRAPH_TEMPLATE,   # ADDED
+    MSG_SQLERROR_FROM_COPYBOOK,
+    MSG_SQLERROR_INJECTED,
+    SQL_ERROR_INCLUDE_TOKEN,
+    SQLERROR_PARAGRAPH_TEMPLATE,
+    USE_SHARED_SQL_ERROR_GENERATOR,
 )
 
 # ---------------------------------------------------------------------------
 # Self-contained legacy abend-marker patterns.
-# Defined here inline (with correct $\d+$ escaping) so this cleanup does NOT
-# depend on external pattern-file edits that may be missing or OCR-broken.
+#
+# CORRECTION - two of these patterns could never match.
+#
+# They previously read:
+#
+#     PIC\s+X$\d+$
+#
+# '$' is the END-OF-STRING ANCHOR, not a literal parenthesis. "X$\d+$"
+# means "literal X, then end of string, then digits, then end of string",
+# which is unsatisfiable. The intended expression is "X$\d+$", i.e.
+# PIC X(08).
+#
+# The corruption came from a PDF/OCR round trip, and the comment that
+# claimed "with correct $\d+$ escaping" carried it forward. Cases (b),
+# (d) and (e) in remove_legacy_restart_working_storage therefore never
+# fired, and legacy abend markers were silently left in the output.
+#
 # All patterns match the SEQUENCE-STRIPPED logical line.
 # ---------------------------------------------------------------------------
 _ABEND_ONELINE = re.compile(
@@ -43,6 +66,22 @@ _ABEND_77_HEADER_NAMED = re.compile(
     r"^\s*77\s+(?P<name>[A-Z0-9-]+)\s+PIC\s+X$\d+$\s*\.?\s*$",
     flags=re.IGNORECASE,
 )
+
+# SQLERROR detection, matched against the whole program text.
+_PERFORM_SQLERROR = re.compile(
+    r"\bPERFORM\s+SQLERROR\b",
+    flags=re.IGNORECASE,
+)
+_SQLERROR_HEADER = re.compile(
+    r"^\s*(?:\d{6}\s*)?SQLERROR\s*\.\s*(?:\d{8})?\s*$",
+    flags=re.IGNORECASE | re.MULTILINE,
+)
+
+# Fixed-format geometry, used by the self-contained _logical helper.
+_LEFT_SEQUENCE_WIDTH = 6
+_RIGHT_SEQUENCE_START = 72
+_RIGHT_SEQUENCE_END = 80
+_FIXED_LINE_WIDTH = 80
 
 
 class UpdateStorageIncludeManager(
@@ -69,18 +108,45 @@ class UpdateStorageIncludeManager(
     # ------------------------------------------------------------------
     @staticmethod
     def _logical(line: str) -> str:
-        """Strip a leading 6-digit sequence and a trailing 8-digit sequence,
-        then strip whitespace. Works for manual-style sequenced COBOL.
+        """Strip the fixed-format sequence areas, then strip whitespace.
+
+        CORRECTION - the right-sequence test was content-based.
+
+        It read:
+
+            if len(text) >= 8 and text[-8:].strip().isdigit():
+
+        which removes the last eight characters of ANY line ending in
+        eight digits, including a genuine statement such as
+
+            MOVE 12345678 TO WS-FIELD
+
+        The test is now COLUMN-based: columns 73-80 are only treated as a
+        right sequence on a line that is actually 80 columns wide.
         """
         text = str(line or "").rstrip("\n")
-        # drop trailing right-sequence (cols 73-80) if present
-        if len(text) >= 8 and text[-8:].strip().isdigit():
-            text = text[:-8]
-        # drop leading left-sequence (cols 1-6) if present
+
+        if (
+            len(text) >= _FIXED_LINE_WIDTH
+            and text[_RIGHT_SEQUENCE_START:_RIGHT_SEQUENCE_END].isdigit()
+        ):
+            text = text[:_RIGHT_SEQUENCE_START]
+
+        if (
+            len(text) >= _LEFT_SEQUENCE_WIDTH
+            and text[:_LEFT_SEQUENCE_WIDTH].isdigit()
+        ):
+            return text[_LEFT_SEQUENCE_WIDTH:].strip()
+
+        # Free-form fallback: a leading run of six digits after indent.
         stripped = text.lstrip()
-        if len(stripped) >= 6 and stripped[:6].strip().isdigit():
-            stripped = stripped[6:]
-        return stripped.strip()
+        if (
+            len(stripped) >= _LEFT_SEQUENCE_WIDTH
+            and stripped[:_LEFT_SEQUENCE_WIDTH].isdigit()
+        ):
+            return stripped[_LEFT_SEQUENCE_WIDTH:].strip()
+
+        return text.strip()
 
     def _field_reference_count(self, field_name: str, cobol_text: str) -> int:
         pattern = re.compile(
@@ -101,20 +167,23 @@ class UpdateStorageIncludeManager(
 
         legacy_patterns = [
             re.compile(
-                LEGACY_77_DECLARATION_PATTERN_TEMPLATE.format(name=re.escape(name)),
+                LEGACY_77_DECLARATION_PATTERN_TEMPLATE.format(
+                    name=re.escape(name)
+                ),
                 flags=re.IGNORECASE,
             )
             for name in UPDATE_LEGACY_RESTART_WS_NAMES
         ]
 
         index = 0
-        n = len(lines)
-        while index < n:
+        total = len(lines)
+
+        while index < total:
             line = lines[index]
             logical = self._logical(line)
 
             # (a) legacy named 77 fields (CTR-REC, SW-EOF, SW-RECAB)
-            if any(p.match(logical) for p in legacy_patterns):
+            if any(pattern.match(logical) for pattern in legacy_patterns):
                 removed = True
                 index += 1
                 continue
@@ -138,9 +207,12 @@ class UpdateStorageIncludeManager(
 
                 # (d) wrapped: next non-blank logical line is a ##&& VALUE.
                 look = index + 1
-                while look < n and not self._logical(lines[look]).strip():
+                while look < total and not self._logical(lines[look]).strip():
                     look += 1
-                if look < n and _ABEND_VALUE_LINE.match(self._logical(lines[look])):
+
+                if look < total and _ABEND_VALUE_LINE.match(
+                    self._logical(lines[look])
+                ):
                     removed = True
                     index = look + 1  # drop header .. value inclusive
                     continue
@@ -159,36 +231,73 @@ class UpdateStorageIncludeManager(
             diagnostics.append(UPDATE_RESTART_DIAGNOSTICS["legacy_ws_removed"])
 
         return "\n".join(output).rstrip() + "\n"
-    
-    # --- ADD this method inside class UpdateStorageIncludeManager ---
+
+    # ------------------------------------------------------------------
+    # SQLERROR routine
+    # ------------------------------------------------------------------
     def ensure_sqlerror_paragraph(self, cobol_text, diagnostics=None):
-        """Append the SQLERROR paragraph once if the program PERFORMs it but
-        never defines it. Placed after the last PROCEDURE DIVISION line.
+        """Append the SQLERROR routine once, if the program needs one.
+
+        CORRECTION - this injected the WRONG body, and injected it even
+        when the copybook already supplied the routine.
+
+        The method looked only for a local 'SQLERROR.' paragraph header.
+        Under the site standard there is none: the routine arrives through
+
+            EXEC SQL
+                 INCLUDE SQLERROR
+            END-EXEC.
+
+        so the header was correctly absent, and this method then appended
+        the legacy DISPLAY / CALL USERABEN body on top of it. That
+        duplicated the copybook routine and made the update output
+        diverge from the retrieval output. CHK-05.08 reported it.
+
+        Two changes:
+
+          - the INCLUDE form now counts as "already present";
+          - the body comes from the shared SqlErrorGenerator, so both
+            program families emit one routine.
         """
         text = str(cobol_text or "")
 
         # Only needed if something calls PERFORM SQLERROR.
-        if not re.search(r"\bPERFORM\s+SQLERROR\b", text, re.IGNORECASE):
+        if not _PERFORM_SQLERROR.search(text):
             return text
 
-        # Skip if a SQLERROR paragraph header already exists.
-        if re.search(r"^\s*(?:\d{6}\s*)?SQLERROR\s*\.\s*(?:\d{8})?\s*$",
-                     text, re.IGNORECASE | re.MULTILINE):
+        # A local paragraph header already defines it.
+        if _SQLERROR_HEADER.search(text):
+            return text
+
+        # The copybook already supplies it. Appending a second body here
+        # is what produced the duplicate routine.
+        if SQL_ERROR_INCLUDE_TOKEN.upper() in text.upper():
+            if diagnostics is not None:
+                diagnostics.append(MSG_SQLERROR_FROM_COPYBOOK)
             return text
 
         lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
 
-        # Drop a trailing blank line to append cleanly.
+        # Drop trailing blank lines so the block appends cleanly.
         while lines and not lines[-1].strip():
             lines.pop()
 
-        # Blank spacer then the paragraph body (Area A header, Area B body).
-        block = [""]
-        for line in SQLERROR_PARAGRAPH_TEMPLATE:
-            block.append(line)                     # header + body verbatim
-        lines.extend(block)
+        lines.append("")
+        lines.extend(self._sql_error_lines())
 
         if diagnostics is not None:
-            diagnostics.append("Injected standard SQLERROR paragraph.")
+            diagnostics.append(MSG_SQLERROR_INJECTED)
 
         return "\n".join(lines).rstrip() + "\n"
+
+    def _sql_error_lines(self) -> list[str]:
+        """The SQLERROR routine body, from the single shared generator.
+
+        SQLERROR_PARAGRAPH_TEMPLATE is retained only as a fallback, so a
+        site that has not yet adopted the copybook form can switch back
+        by setting USE_SHARED_SQL_ERROR_GENERATOR to False.
+        """
+        if USE_SHARED_SQL_ERROR_GENERATOR:
+            return list(SqlErrorGenerator().paragraph_lines())
+
+        return list(SQLERROR_PARAGRAPH_TEMPLATE)

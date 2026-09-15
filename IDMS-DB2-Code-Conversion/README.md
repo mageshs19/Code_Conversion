@@ -50,3 +50,8 @@ python src\idms_db2_phase2\testing\run_update.py
 python src\idms_db2_phase2\testing\batch_execution.py --mode retrieval
 python src\idms_db2_phase2\testing\batch_execution.py --no-review
 python src\idms_db2_phase2\testing\batch_execution.py --quiet
+
+
+python -m pip install "pytest>=9.1.1"
+$env:PYTHONPATH = "src;."
+python -m pytest tests -q

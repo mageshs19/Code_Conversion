@@ -374,3 +374,35 @@ RESTART_INSERT_QUERYNO = "413"
 # SQLERRWS supplies SQL-LOCATION. A local declaration is a duplicate
 # data-name. Decision closed by the manual reference program.
 ENFORCE_SQL_LOCATION_DECLARATION = False
+
+# =====================================================================
+# DECISIONS CLOSED BY THE MANUAL REFERENCE PROGRAM (VMDZ4420)
+#
+# Appended deliberately: these assignments override any earlier value in
+# this file.
+# =====================================================================
+
+# ---- CHK-02.03 SQL-LOCATION ownership
+#
+# SQLERRWS declares SQL-LOCATION. A local 01 declaration is a DUPLICATE
+# DATA-NAME, which the compiler rejects. The manual reference program
+# carries no 01 SQL-LOCATION entry at all: it moves into the field and
+# lets the copybook own it.
+#
+# The converter was changed to match (catalogs/output_sections.py,
+# DECLARE_SQL_LOCATION_FIELD = False). This flag lets CHK-02.03 follow.
+ENFORCE_SQL_LOCATION_DECLARATION = False
+
+# ---- CHK-09.05 SQL-LOCATION move form
+#
+# Manual reference:
+#     MOVE 710    TO SQL-LOCATION
+#
+# The old single prefix "MOVE '" recognised only the quoted paragraph-name
+# form, so every generated cursor paragraph failed the check even though
+# it sets SQL-LOCATION correctly. Both forms are now accepted.
+SQL_LOCATION_MOVE_PREFIXES = ("MOVE '", "MOVE ")
+
+# Retained for any caller still reading the singular name.
+SQL_LOCATION_MOVE_PREFIX = "MOVE "
+SQL_LOCATION_SOURCE_COPYBOOK = "SQLERRWS"

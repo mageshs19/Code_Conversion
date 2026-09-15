@@ -153,6 +153,9 @@ class CounterDeclarationComposer:
     # =================================================================
     # Declaration
     # =================================================================
+    # =================================================================
+    # Declaration
+    # =================================================================
     def _declare(
         self,
         lines: list[str],
@@ -168,12 +171,19 @@ class CounterDeclarationComposer:
             )
             return lines
 
-        index, group_name, level = anchor
-        template = lines[index]
+        header_index, child_index, group_name, level = anchor
+
+        # Clone the first CHILD, not the 01 header.
+        #
+        # The header sits in Area A with a body indent of 0, so cloning it
+        # produced "10  WS-NB-OUTPUT-COUNT" at column 8 while every
+        # sibling sat at column 12. CHK-06.05 flagged it correctly.
+        template = lines[child_index]
+        indent = self.fixed_format.body_indent(template)
 
         block: list[str] = []
         for name in missing:
-            body = COUNTER_DECLARATION_TEMPLATE.format(
+            body = indent + COUNTER_DECLARATION_TEMPLATE.format(
                 level=level,
                 name=name,
                 picture=COUNTER_PICTURE,
@@ -186,16 +196,17 @@ class CounterDeclarationComposer:
                 )
             )
 
-        return lines[: index + 1] + block + lines[index + 1 :]
+        return lines[: header_index + 1] + block + lines[header_index + 1 :]
 
     def _group_anchor(
         self,
         lines: list[str],
-    ) -> tuple[int, str, str] | None:
-        """(header index, group name, child level) of the first 01 group.
+    ) -> tuple[int, int, str, str] | None:
+        """(header index, first child index, group name, child level).
 
-        Only WORKING-STORAGE is considered. The child level is taken from
-        the group's first subordinate so a site using 05 is respected.
+        Only WORKING-STORAGE is considered. The level AND the indent are
+        both read from the group's first subordinate, so a site using 05
+        at column 14 gets 05 at column 14.
         """
         in_working_storage = False
 
@@ -221,14 +232,45 @@ class CounterDeclarationComposer:
             if not header:
                 continue
 
-            level = self._child_level(lines, index)
-            if level is None:
+            child = self._first_child(lines, index)
+            if child is None:
                 continue
 
-            return index, header.group("name").upper(), level
+            child_index, level = child
+            return index, child_index, header.group("name").upper(), level
 
         return None
 
+    def _first_child(
+        self,
+        lines: list[str],
+        header_index: int,
+    ) -> tuple[int, str] | None:
+        """(index, level) of the group's first subordinate entry."""
+        for index in range(header_index + 1, len(lines)):
+            line = lines[index]
+
+            if self.fixed_format.is_comment_or_control_line(line):
+                continue
+
+            logical = self.fixed_format.logical(line)
+            if not logical:
+                continue
+
+            if GROUP_HEADER_PATTERN.match(logical):
+                return None
+
+            if SECTION_OR_DIVISION_PATTERN.match(logical):
+                return None
+
+            match = SUBORDINATE_ENTRY_PATTERN.match(logical)
+            if match:
+                return index, match.group("level")
+
+            return None
+
+        return None
+    
     def _child_level(self, lines: list[str], header_index: int) -> str | None:
         """Level number of the group's first subordinate entry."""
         for index in range(header_index + 1, len(lines)):

@@ -501,7 +501,7 @@ class FixedFormatLineService:
             remaining = remaining[len(taken) :]
             is_first = False
 
-        if len(bodies) < 2:
-            return []
+        #if len(bodies) < 2:
+        #   return []
 
         return bodies

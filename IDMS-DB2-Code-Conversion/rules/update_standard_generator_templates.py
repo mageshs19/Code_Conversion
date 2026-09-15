@@ -284,3 +284,14 @@ SQLERROR_PARAGRAPH_TEMPLATE = [
     "     DISPLAY 'SQLCODE      : ' SQLCODE.",
     "     CALL USERABEN.",
 ]
+
+# importer; this flag decides which body is actually emitted.
+USE_SHARED_SQL_ERROR_GENERATOR = True
+
+# Token proving the copybook already supplies the routine.
+SQL_ERROR_INCLUDE_TOKEN = "INCLUDE SQLERROR"
+
+MSG_SQLERROR_INJECTED = "Injected standard SQLERROR routine."
+MSG_SQLERROR_FROM_COPYBOOK = (
+    "SQLERROR routine already supplied by the copybook; not injected."
+)

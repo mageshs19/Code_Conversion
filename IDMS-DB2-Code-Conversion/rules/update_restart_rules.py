@@ -318,3 +318,10 @@ RESTART_PAYLOAD_TEXT_SPEC = (
     "text",
 )
 LEGACY_ABEND_MARKER_LITERAL_PREFIX = "##&&"
+
+# now delegates to SqlErrorGenerator rather than carrying its own copy.
+USE_SHARED_SQL_ERROR_GENERATOR = True
+
+# Retained only so an existing import does not break. Do not emit.
+SQLERROR_PARAGRAPH_TEMPLATE: list[str] = []
+
