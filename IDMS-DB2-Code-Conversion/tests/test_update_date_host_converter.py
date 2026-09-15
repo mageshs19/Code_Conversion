@@ -1,4 +1,4 @@
-﻿from types import SimpleNamespace
+from types import SimpleNamespace
 
 from idms_db2_phase2.postprocess.update_date_host_converter import (
     UpdateDateHostConverter,
@@ -48,6 +48,8 @@ def test_raw_move_to_date_host_is_converted_wrapped():
     ])
     out = _converter().apply(block)
     assert "MOVE DA-DD-MM-CCYY TO DA-CRFMAS-479BFAR OF DCLDZBFARTV" in out
+
+
 
 
 def test_timestamp_audit_move_is_never_converted():
