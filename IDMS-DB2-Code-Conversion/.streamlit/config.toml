@@ -1,0 +1,25 @@
+# VDI / locked-down network settings.
+
+[browser]
+# THE fix for a 1-2 minute launch.
+#
+# Streamlit calls [https://data.streamlit.io%20on%20startup.%20A%20corporate%20proxy](https://data.streamlit.io%20on%20startup.%20A%20corporate%20proxy)
+# that DROPS the packet does not fail fast - the socket waits out the TCP
+# timeout and retries. Disabling the call removes the wait entirely.
+gatherUsageStats = false
+
+# Do not try to open a browser. On VDI this stalls.
+serverAddress = "localhost"
+
+[server]
+# "auto" registers a watchdog observer across the whole tree. If the
+# project folder is on a mapped or redirected drive, that is thousands of
+# SMB round trips before the first render. Production never edits source
+# at runtime.
+fileWatcherType = "none"
+headless = true
+runOnSave = false
+port = 8502
+
+[logger]
+level = "warning"
