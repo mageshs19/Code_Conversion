@@ -55,3 +55,6 @@ python src\idms_db2_phase2\testing\batch_execution.py --quiet
 python -m pip install "pytest>=9.1.1"
 $env:PYTHONPATH = "src;."
 python -m pytest tests -q
+
+
+check
