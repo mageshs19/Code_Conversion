@@ -1,3 +1,6 @@
+# LOCATION: src/idms_db2_phase2/ui/main_tab.py
+# ACTION: REPLACE ENTIRE FILE
+
 from __future__ import annotations
 
 import streamlit as st
@@ -8,19 +11,24 @@ from idms_db2_phase2.ui.status_panel import (
     render_current_status,
     render_main_download_section,
 )
+from rules.lrf_rules import LRF_UPLOAD_HELP, LRF_UPLOAD_LABEL
 
 
 def render_main_tab() -> None:
     st.markdown("## Upload Inputs")
-
     st.info(
         "Upload Sheet Mapping, one or more DCLGEN files, optional Copybook files, "
-        "and the IDMS COBOL source text file to generate DB2 embedded SQL COBOL."
+        "the optional LRF Subschema file, and the IDMS COBOL source text file "
+        "to generate DB2 embedded SQL COBOL."
     )
 
-    sheet_mapping_file, dclgen_files, copybook_files, idms_cobol_source_file = (
-        _render_uploaders()
-    )
+    (
+        sheet_mapping_file,
+        dclgen_files,
+        copybook_files,
+        lrf_files,
+        idms_cobol_source_file,
+    ) = _render_uploaders()
 
     st.caption(
         "Target PROGRAM-ID is derived automatically from the uploaded COBOL "
@@ -31,6 +39,7 @@ def render_main_tab() -> None:
         sheet_mapping_file=sheet_mapping_file,
         dclgen_files=dclgen_files,
         copybook_files=copybook_files,
+        lrf_files=lrf_files,
         idms_cobol_source_file=idms_cobol_source_file,
     )
 
@@ -51,12 +60,18 @@ def _render_uploaders():
                 "If your file is .xls, save it as .xlsx or .csv first."
             ),
         )
-
         dclgen_files = st.file_uploader(
             "DCLGEN text file or files",
             type=["txt", "cbl", "cpy"],
             accept_multiple_files=True,
             key="dclgen_files",
+        )
+        lrf_files = st.file_uploader(
+            LRF_UPLOAD_LABEL,
+            type=["txt", "sub", "sch", "cpy", "cbl"],
+            accept_multiple_files=True,
+            key="lrf_files",
+            help=LRF_UPLOAD_HELP,
         )
 
     with col2:
@@ -66,7 +81,6 @@ def _render_uploaders():
             accept_multiple_files=True,
             key="copybook_files",
         )
-
         idms_cobol_source_file = st.file_uploader(
             "IDMS COBOL source code",
             type=["txt", "cbl", "cob"],
@@ -77,6 +91,7 @@ def _render_uploaders():
         sheet_mapping_file,
         dclgen_files,
         copybook_files,
+        lrf_files,
         idms_cobol_source_file,
     )
 
@@ -86,6 +101,7 @@ def _render_action_buttons(
     sheet_mapping_file,
     dclgen_files,
     copybook_files,
+    lrf_files,
     idms_cobol_source_file,
 ) -> None:
     col_load, col_generate = st.columns(2)
@@ -96,6 +112,7 @@ def _render_action_buttons(
                 sheet_mapping_file=sheet_mapping_file,
                 dclgen_files=dclgen_files,
                 copybook_files=copybook_files,
+                lrf_files=lrf_files,
                 idms_cobol_source_file=idms_cobol_source_file,
             )
 

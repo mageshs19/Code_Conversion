@@ -127,3 +127,5 @@ PROCEDURE_INDENT_MESSAGES = {
         "paragraph {paragraph}; block left untouched."
     ),
 }
+
+ENFORCE_AREA_ALIGNMENT_REFLOW = False

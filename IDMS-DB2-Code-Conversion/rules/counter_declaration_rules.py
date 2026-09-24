@@ -68,3 +68,20 @@ COUNTER_DECLARATION_MESSAGES = {
         "Counters: no {anchor} statement found; end-of-run totals skipped."
     ),
 }
+# LOCATION: rules/counter_declaration_rules.py
+# ACTION: APPEND at the end of the file
+
+#
+# Counter naming convention
+#
+# A generated row counter is WS-NB-<token>-COUNT. The token is the
+# distinctive middle of the DB2 table name, or OUTPUT for the file
+# counter. Kept here so no composer carries a naming literal.
+#
+COUNTER_NAME_PREFIX = "WS-NB-"
+COUNTER_NAME_SUFFIX = "-COUNT"
+COUNTER_OUTPUT_TOKEN = "OUTPUT"
+
+# Tokens that identify an existing end-of-run total line.
+TOTALS_DISPLAY_VERB = "DISPLAY"
+TOTALS_LABEL_TOKEN = "TOTAL"

@@ -1,12 +1,16 @@
+# LOCATION: src/idms_db2_phase2/ui/status_panel.py
+# ACTION: REPLACE ENTIRE FILE
+
 from __future__ import annotations
 
 import streamlit as st
 
+from rules.lrf_rules import LRF_METRIC_LABEL
+
 
 def render_current_status() -> None:
     st.markdown("## Current Status")
-
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
         st.metric("Sheet Mapping Rows", len(st.session_state.sheet_mapping_rows))
@@ -18,6 +22,12 @@ def render_current_status() -> None:
         st.metric("Copybook Fields", len(st.session_state.copybook_fields))
 
     with col4:
+        st.metric(
+            LRF_METRIC_LABEL,
+            len(st.session_state.get("logical_records") or []),
+        )
+
+    with col5:
         st.metric("IDMS COBOL Length", len(st.session_state.idms_cobol_text))
 
     if st.session_state.loaded:

@@ -45,3 +45,42 @@ DESC_HINT_WORDS = (
     "AUTO",
     "INCREMENT",
 )
+
+ENFORCE_FULL_RECORD_SELECT = True
+
+CURSOR_COLUMN_SELECT_RULES.append(
+    "When a record is materialised from its DCLGEN group, the cursor "
+    "SELECT covers every mapped DCLGEN column of that record."
+)
+
+CURSOR_COLUMN_MESSAGES = {
+    "usage_only": (
+        "Cursor columns: {record} resolved {count} column(s) from field "
+        "usage analysis."
+    ),
+    "full_record_applied": (
+        "Cursor columns: {record} extended from {usage} usage-driven "
+        "column(s) to {total} mapped DCLGEN column(s) so every "
+        "materialised field is fetched."
+    ),
+    "full_record_unavailable": (
+        "Cursor columns: {record} has no resolvable full DCLGEN column "
+        "set; kept the {count} usage-driven column(s)."
+    ),
+}
+CURSOR_COLUMN_MESSAGES["usage_selector_missing"] = (
+    "Cursor columns: {record} has no field-usage selector; the SELECT "
+    "list is full-record only and column order is not usage-driven."
+)
+CURSOR_COLUMN_MESSAGES["usage_selector_failed"] = (
+    "Cursor columns: {record} field-usage selection failed ({reason}); "
+    "the SELECT list is full-record only."
+)
+CURSOR_COLUMN_MESSAGES["usage_selector_missing"] = (
+    "Cursor columns: {record} has no field-usage selector; the SELECT "
+    "list is full-record only and column order is not usage-driven."
+)
+CURSOR_COLUMN_MESSAGES["usage_selector_failed"] = (
+    "Cursor columns: {record} field-usage selection failed ({reason}); "
+    "the SELECT list is full-record only."
+)

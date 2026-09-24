@@ -25,3 +25,5 @@ COBOL_TEXT_ENCODING = "utf-8"
 
 # Logger name for the retrieval conversion run.
 RETRIEVAL_LOGGER_NAME = "idms_db2_retrieval_conversion"
+
+

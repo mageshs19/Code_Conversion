@@ -8,12 +8,30 @@ from idms_db2_phase2.parsers.dclgen_parser import DclgenParser
 from idms_db2_phase2.parsers.sheet_mapping_parser import SheetMappingParser
 from idms_db2_phase2.ui.session_state import reset_generated_output_state
 
+# LOCATION: src/idms_db2_phase2/ui/input_loader.py
+# ACTION: ADD these imports below the existing imports
+
+from idms_db2_phase2.parsers.lrf_parser import LrfParser
+from rules.lrf_rules import (
+    DIAG_LRF_FILE_COUNT_TEMPLATE,
+    DIAG_LRF_FILE_TEMPLATE,
+    DIAG_LRF_NOT_UPLOADED,
+    DIAG_LRF_PARSED_ZERO,
+    DIAG_LRF_PARSE_FAILED_TEMPLATE,
+    DIAG_LRF_READ_FAILED_TEMPLATE,
+    DIAG_LRF_TEXT_LEN_TEMPLATE,
+    LRF_SOURCE_LABEL,
+)
+
+# LOCATION: src/idms_db2_phase2/ui/input_loader.py
+# ACTION: REPLACE the whole load_and_analyze_inputs function
 
 def load_and_analyze_inputs(
     sheet_mapping_file,
     dclgen_files,
     copybook_files,
-    idms_cobol_source_file,
+    lrf_files=None,
+    idms_cobol_source_file=None,
 ) -> None:
     diagnostics: list[str] = []
     uploaded_file_names: dict[str, object] = {}
@@ -22,6 +40,7 @@ def load_and_analyze_inputs(
     sheet_mapping_parser = SheetMappingParser()
     dclgen_parser = DclgenParser()
     copybook_parser = CopybookParser()
+    lrf_parser = LrfParser()
 
     diagnostics.append("START LOAD INPUTS")
 
@@ -31,7 +50,6 @@ def load_and_analyze_inputs(
         diagnostics=diagnostics,
         uploaded_file_names=uploaded_file_names,
     )
-
     dclgen_columns = _load_dclgen_files(
         dclgen_files=dclgen_files,
         file_loader=file_loader,
@@ -39,11 +57,19 @@ def load_and_analyze_inputs(
         diagnostics=diagnostics,
         uploaded_file_names=uploaded_file_names,
     )
-
     copybook_fields = _load_copybook_files(
         copybook_files=copybook_files,
         file_loader=file_loader,
         parser=copybook_parser,
+        diagnostics=diagnostics,
+        uploaded_file_names=uploaded_file_names,
+    )
+
+    # ---- LRF sits between Copybook metadata and the COBOL source.
+    logical_records = _load_lrf_files(
+        lrf_files=lrf_files,
+        file_loader=file_loader,
+        parser=lrf_parser,
         diagnostics=diagnostics,
         uploaded_file_names=uploaded_file_names,
     )
@@ -58,6 +84,7 @@ def load_and_analyze_inputs(
     st.session_state.sheet_mapping_rows = sheet_rows
     st.session_state.dclgen_columns = dclgen_columns
     st.session_state.copybook_fields = copybook_fields
+    st.session_state.logical_records = logical_records
     st.session_state.idms_cobol_text = idms_cobol_text
     st.session_state.idms_cobol_source_name = idms_cobol_source_name
 
@@ -81,8 +108,7 @@ def load_and_analyze_inputs(
             "Inputs were processed, but one or more required inputs are missing "
             "or parsed as empty. Review the Diagnostics tab."
         )
-
-
+        
 def _load_sheet_mapping(
     *,
     sheet_mapping_file,
@@ -251,3 +277,70 @@ def _load_idms_cobol_source(
     except Exception as exc:
         diagnostics.append(f"IDMS COBOL source read failed: {exc}")
         return "", source_name
+
+# LOCATION: src/idms_db2_phase2/ui/input_loader.py
+# ACTION: ADD NEW FUNCTION
+
+def _load_lrf_files(
+    *,
+    lrf_files,
+    file_loader: FileLoader,
+    parser: LrfParser,
+    diagnostics: list[str],
+    uploaded_file_names: dict[str, object],
+) -> list:
+    if not lrf_files:
+        diagnostics.append(DIAG_LRF_NOT_UPLOADED)
+        return []
+
+    diagnostics.append(DIAG_LRF_FILE_COUNT_TEMPLATE.format(count=len(lrf_files)))
+
+    file_names: list[str] = []
+    text_parts: list[str] = []
+
+    for index, file in enumerate(lrf_files, start=1):
+        file_name = str(file.name or "")
+        file_names.append(file_name)
+        try:
+            text = file_loader.read_uploaded_text(file)
+            text_parts.append(text)
+            diagnostics.append(
+                DIAG_LRF_FILE_TEMPLATE.format(index=index, path=file_name)
+            )
+            diagnostics.append(
+                DIAG_LRF_TEXT_LEN_TEMPLATE.format(index=index, length=len(text))
+            )
+        except Exception as exc:  # noqa: BLE001
+            diagnostics.append(
+                DIAG_LRF_READ_FAILED_TEMPLATE.format(name=file_name, reason=exc)
+            )
+
+    uploaded_file_names["lrf_files"] = file_names
+
+    lrf_text = "\n".join(text_parts)
+    if not lrf_text.strip():
+        diagnostics.append(DIAG_LRF_PARSED_ZERO)
+        return []
+
+    try:
+        try:
+            logical_records = parser.parse(
+                text=lrf_text,
+                source_label=LRF_SOURCE_LABEL,
+            )
+        except TypeError:
+            logical_records = parser.parse(lrf_text)
+
+        if hasattr(parser, "diagnostics"):
+            diagnostics.extend(parser.diagnostics)
+
+        return logical_records
+
+    except Exception as exc:  # noqa: BLE001
+        diagnostics.append(
+            DIAG_LRF_PARSE_FAILED_TEMPLATE.format(
+                name=LRF_SOURCE_LABEL,
+                reason=exc,
+            )
+        )
+        return []

@@ -43,9 +43,13 @@ Clean Architecture
 from __future__ import annotations
 
 from catalogs.output_sections import (
+    COMMENT_TITLE_WIDTH,
     DB2_CURSOR_DECLARATIONS_MARKER,
     DB2_CURSOR_FLAGS_MARKER,
     DB2_INFRASTRUCTURE_MARKER,
+    MARKER_MESSAGES,
+    MARKER_SHORT_FORMS,
+    MARKER_TRUNCATION_SUFFIX,
     SQLCA_INCLUDE_NAME,
     SQLERRWS_INCLUDE_NAME,
 )
@@ -73,7 +77,8 @@ class InfrastructureBlockBuilder:
         self.sql_location = SqlLocationBuilder(line_utils)
         self.flags = CursorFlagBuilder()
         self.declares = CursorDeclareBuilder(line_utils)
-
+        # Banner-width decisions are reported, not silent.
+        self.messages: list[str] = []
     # =================================================================
     # Public entry point
     # =================================================================
@@ -97,6 +102,9 @@ class InfrastructureBlockBuilder:
     # =================================================================
     # Sections
     # =================================================================
+    # ------------------------------------------------------------------
+    # Sections
+    # ------------------------------------------------------------------
     def _infrastructure_section(self, include_names: list[str]) -> list[str]:
         """Marker comment, then SQLERRWS, SQLCA and each DCLGEN include.
 
@@ -104,7 +112,7 @@ class InfrastructureBlockBuilder:
         generated paragraph moves into before issuing SQL.
         """
         return [
-            *self.line_utils.comment_block(DB2_INFRASTRUCTURE_MARKER),
+            *self._marker_lines(DB2_INFRASTRUCTURE_MARKER),
             *self.includes.render_all(
                 [
                     SQLERRWS_INCLUDE_NAME,
@@ -117,18 +125,86 @@ class InfrastructureBlockBuilder:
     def _flags_section(self, specs: list[CursorSpec]) -> list[str]:
         return [
             "",
-            *self.line_utils.comment_block(DB2_CURSOR_FLAGS_MARKER),
+            *self._marker_lines(DB2_CURSOR_FLAGS_MARKER),
             *self.flags.build(specs),
         ]
 
     def _declarations_section(self, specs: list[CursorSpec]) -> list[str]:
         lines: list[str] = [
             "",
-            *self.line_utils.comment_block(DB2_CURSOR_DECLARATIONS_MARKER),
+            *self._marker_lines(DB2_CURSOR_DECLARATIONS_MARKER),
         ]
-
         for spec in specs:
             lines.extend(self.declares.build(spec))
             lines.append("")
 
         return lines
+    
+    # ------------------------------------------------------------------
+    # Marker width guard
+    # ------------------------------------------------------------------
+    def _marker_lines(self, title: str) -> list[str]:
+        """A banner comment that is guaranteed to fit columns 8-72.
+
+        REGRESSION
+
+        DB2_INFRASTRUCTURE_MARKER is 69 characters. The banner template
+        pads with {title:<62} but never truncates, so the rendered line
+        ran to column 76 and the fixed-format writer wrapped it:
+
+            002350*DB2 SQLCA, SQL ERROR WORKING STORAGE, DCLGEN INCLUDES, AND CURSOR
+            002360*FLAGS*
+
+        The phrase was split and the second line carried no opening
+        asterisk. A banner that does not fit must fall back to its
+        registered SHORT form, never wrap.
+
+        The width decision lives here rather than in comment_block()
+        because this class is what CHOOSES the markers; comment_block()
+        stays a plain renderer used by other callers too.
+        """
+        fitted = self._fit_marker(title)
+        if not fitted:
+            return []
+        return self.line_utils.comment_block(fitted)
+
+    def _fit_marker(self, title: str) -> str:
+        """The longest usable form of a marker title.
+
+        Order of preference:
+            1. the title itself, when it fits
+            2. its registered short form, when that fits
+            3. the title truncated with a visible ellipsis
+
+        Truncation is reported. A silently shortened banner is a review
+        problem, not a formatting one.
+        """
+        text = str(title or "").strip()
+        if not text:
+            return ""
+
+        width = COMMENT_TITLE_WIDTH
+        if len(text) <= width:
+            return text
+
+        short = str(MARKER_SHORT_FORMS.get(text, "")).strip()
+        if short and len(short) <= width:
+            self._log("short_form_used", length=len(text), width=width)
+            return short
+
+        self._log("truncated", length=len(text), width=width)
+        return self._truncate(text, width)
+
+    @staticmethod
+    def _truncate(title: str, width: int) -> str:
+        """Cut to width, keeping a visible marker that a cut happened."""
+        text = str(title or "")
+        suffix = MARKER_TRUNCATION_SUFFIX
+        if width <= len(suffix):
+            return text[:width]
+        return text[: width - len(suffix)] + suffix
+
+    def _log(self, key: str, **values) -> None:
+        template = MARKER_MESSAGES.get(key, "")
+        if template:
+            self.messages.append(template.format(**values))

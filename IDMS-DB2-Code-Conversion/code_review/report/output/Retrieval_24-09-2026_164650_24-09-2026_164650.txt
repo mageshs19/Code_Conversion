@@ -1,0 +1,120 @@
+Code Review Report
+--------------------------------------------------------------------------
+Program            : Retrieval_24-09-2026_164650
+Program Kind       : RETRIEVAL
+Reviewed File      : Retrieval_24-09-2026_164650.cbl
+Reviewed           : 24-09-2026 16:46:50
+Checks             : 11 passed, 2 failed, 12 skipped, 0 blocked
+Criteria           : 79 passed, 3 failed, 32 skipped, 0 blocked
+Result             : REJECTED
+Blocking           : CHK-04
+
+Detail
+--------------------------------------------------------------------------
+PASS  CHK-01 Critical Fixed format 80-column layout
+        CHK-01.09 Sequence start value
+            note : Not enforced by the site standard.
+PASS  CHK-06 Minor    Area A and Area B alignment
+        CHK-06.08 Continuation lines sit in Area B
+            note : No continuation line found.
+PASS  CHK-07 Major    Sequence numbering continuity
+        CHK-07.06 Left sequence start value
+            note : Not enforced by the site standard.
+        CHK-07.07 Right sequence start value
+            note : Not enforced by the site standard.
+PASS  CHK-02 Critical DB2 infrastructure declarations
+        CHK-02.03 SQL-LOCATION is declared
+            note : SQL-LOCATION is supplied by SQLERRWS, not declared in the program.
+PASS  CHK-05 Critical SQL error paragraph and routing
+        CHK-05.02 Exactly one SQLERROR paragraph is declared
+            note : SQLERROR is supplied by INCLUDE SQLERROR, not declared in the program.
+PASS  CHK-08 Critical DCLGEN include and copybook integrity
+        CHK-08.05 Every INCLUDE names a known DCLGEN table
+            note : No DCLGEN metadata supplied for this run.
+        CHK-08.06 Every DCLGEN host variable used has its table included
+            note : No DCLGEN metadata supplied for this run.
+        CHK-08.09 Every COPY member resolves to a copybook record
+            note : Copybook member names are not part of the supplied metadata (decision open).
+PASS  CHK-03 Critical No residual IDMS statements
+FAIL  CHK-04 Critical Compiler option and PROGRAM-ID
+        CHK-04.01 Compiler option is CBL ARITH(EXTEND)
+            note : no CBL line found
+        CHK-04.02 Exactly one compiler option line
+            note : found 0
+        CHK-04.04 PROGRAM-ID matches derived name
+            note : No source program supplied for comparison.
+        CHK-04.05 END PROGRAM matches PROGRAM-ID
+            note : END PROGRAM is not part of the site standard.
+        CHK-04.06 CS-PROGRAM holds the PROGRAM-ID
+            note : CS-PROGRAM not declared at level 01, 02, 03, 04, 05, 06, 07, 08, 09, 10, 77.
+PASS  CHK-09 Major    Record retrieval conversion
+        CHK-09.02 Every SELECT names a source table
+            note : Program contains no business singleton SELECT.
+        CHK-09.03 Every SELECT retrieves into host variables
+            note : Program contains no business singleton SELECT.
+        CHK-09.04 Every SELECT is key qualified
+            note : Program contains no business singleton SELECT.
+PASS  CHK-11 Major    SQLCODE and COMMIT conversion
+        CHK-11.08 FINISH converted to COMMIT
+            note : No source program supplied for comparison.
+PASS  CHK-12 Critical Cursor declaration standard
+PASS  CHK-13 Major    Cursor paragraph structure
+FAIL  CHK-14 Major    End-of-cursor handling
+        CHK-14.05 Every FETCH paragraph is performed until its flag
+            note : missing: PERFORM 720-FETCH-DZBFASC1 UNTIL DZBFASC1-EOC
+            PERFORM 720-FETCH-DZBFASC1 UNTIL DZBFASC1-EOC
+SKIP  CHK-15 Major    Nested cursor processing
+        CHK-15.00 Nested cursor processing
+            note : Program uses fewer than two cursors.
+SKIP  CHK-10 Critical Record modification conversion
+        CHK-10.00 Record modification conversion
+            note : Applies to UPDATE programs only.
+SKIP  CHK-16 Critical Conservative update column selection
+        CHK-16.00 Conservative update column selection
+            note : Applies to UPDATE programs only.
+SKIP  CHK-17 Critical Update WHERE key integrity
+        CHK-17.00 Update WHERE key integrity
+            note : Applies to UPDATE programs only.
+SKIP  CHK-18 Major    Audit column and date handling
+        CHK-18.00 Audit column and date handling
+            note : Applies to UPDATE programs only.
+SKIP  CHK-19 Major    Restart paragraph structure
+        CHK-19.00 Restart paragraph structure
+            note : Applies to UPDATE programs only.
+SKIP  CHK-20 Major    Restart SQL generated from DCLGEN metadata
+        CHK-20.00 Restart SQL generated from DCLGEN metadata
+            note : Applies to UPDATE programs only.
+SKIP  CHK-21 Critical Unresolved restart metadata safe skip
+        CHK-21.00 Unresolved restart metadata safe skip
+            note : Applies to UPDATE programs only.
+SKIP  CHK-22 Critical DB2 table and column naming authority
+        CHK-22.01 Every DB2 table comes from Sheet Mapping or DCLGEN
+            note : No Sheet Mapping or DCLGEN metadata supplied for this run.
+        CHK-22.02 Every DB2 table used has a DCLGEN
+            note : No DCLGEN metadata supplied for this run.
+        CHK-22.03 Every DB2 column comes from DCLGEN
+            note : No DCLGEN metadata supplied for this run.
+        CHK-22.04 Every Sheet Mapping table used resolves to a DCLGEN
+            note : Sheet Mapping or DCLGEN metadata not supplied for this run.
+        CHK-22.05 Every DCL group names a known table
+            note : No DCLGEN metadata supplied for this run.
+SKIP  CHK-23 Critical DCLGEN host variable name exactness
+        CHK-23.00 DCLGEN host variable name exactness
+            note : No DCLGEN metadata supplied for this run.
+SKIP  CHK-24 Major    Picture clause and length validation
+        CHK-24.00 Picture clause and length validation
+            note : No DCLGEN metadata supplied for this run.
+SKIP  CHK-25 Major    Copybook and record usage validation
+        CHK-25.00 Copybook and record usage validation
+            note : No Sheet Mapping or copybook metadata supplied for this run.
+
+Failures
+--------------------------------------------------------------------------
+CHK-04  Critical  Compiler option and PROGRAM-ID
+    CHK-04.01  Compiler option is CBL ARITH(EXTEND)
+        no CBL line found
+    CHK-04.02  Exactly one compiler option line
+        found 0
+CHK-14  Major     End-of-cursor handling
+    CHK-14.05  Every FETCH paragraph is performed until its flag
+        missing: PERFORM 720-FETCH-DZBFASC1 UNTIL DZBFASC1-EOC

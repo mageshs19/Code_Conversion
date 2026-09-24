@@ -312,3 +312,22 @@ WRAP_IF_PREFIX = "IF "
 WRAP_MOVE_PREFIX = "MOVE "
 WRAP_TO_PREFIX = "TO "
 BOOLEAN_OPERATOR_WORDS = frozenset({"AND", "OR"})
+
+# ---------------------------------------------------------------------
+# Diagnostics
+# ---------------------------------------------------------------------
+# A four-line IF condition was joined into two lines and cut mid-name,
+# losing 25 characters, because _merge_dangling_boolean_lines merged
+# without checking the 65-column window. Neither the merge nor the cut
+# said anything. Both now report.
+FIXED_FORMAT_MESSAGES = {
+    "merge_refused": (
+        "Fixed format: continuation merge refused, {width} columns "
+        "exceeds the {limit}-column body window; the author's line "
+        "break was kept ({body}...)."
+    ),
+    "body_truncated": (
+        "Fixed format: body of {width} columns exceeded the {limit}-"
+        "column window and was cut ({body}...). Wrapping failed upstream."
+    ),
+}

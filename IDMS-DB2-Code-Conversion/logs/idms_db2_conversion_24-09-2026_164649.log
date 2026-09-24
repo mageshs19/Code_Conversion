@@ -1,0 +1,114 @@
+24-09-2026 16:46:49 | INFO | idms_db2_retrieval_conversion | Logger initialized.
+24-09-2026 16:46:49 | INFO | idms_db2_retrieval_conversion | Log file: C:\VSCode\Latest\IDMS-DB2-Code-Conversion\IDMS-DB2-Code-Conversion\logs\idms_db2_conversion_24-09-2026_164649.log
+24-09-2026 16:46:49 | INFO | idms_db2_retrieval_conversion | START LOAD INPUTS
+24-09-2026 16:46:49 | INFO | idms_db2_retrieval_conversion | Sheet Mapping selected: C:\S\S-Input\Mapping Sheet\Excel-Sheet.csv
+24-09-2026 16:46:49 | INFO | idms_db2_retrieval_conversion | Sheet Mapping rows: 840
+24-09-2026 16:46:49 | INFO | idms_db2_retrieval_conversion | DCLGEN file count: 1
+24-09-2026 16:46:49 | INFO | idms_db2_retrieval_conversion | DCLGEN 1: C:\S\S-Input\DCLGen\DCLGENs_BFAS.txt
+24-09-2026 16:46:49 | INFO | idms_db2_retrieval_conversion | DCLGEN 1 text length: 12332
+24-09-2026 16:46:49 | INFO | idms_db2_retrieval_conversion | DCLGEN total columns: 89
+24-09-2026 16:46:49 | INFO | idms_db2_retrieval_conversion | Copybook file count: 1
+24-09-2026 16:46:49 | INFO | idms_db2_retrieval_conversion | Copybook 1: C:\S\S-Input\Copybook\copybook1.txt
+24-09-2026 16:46:49 | INFO | idms_db2_retrieval_conversion | Copybook 1 text length: 1420
+24-09-2026 16:46:49 | INFO | idms_db2_retrieval_conversion | Copybook total fields: 5
+24-09-2026 16:46:49 | INFO | idms_db2_retrieval_conversion | IDMS COBOL source file: C:\S\S-Input\Program\Retrieval\Retrieval.cbl
+24-09-2026 16:46:49 | INFO | idms_db2_retrieval_conversion | IDMS COBOL source text length: 18206
+24-09-2026 16:46:49 | INFO | idms_db2_retrieval_conversion | Derived target PROGRAM-ID: VMDZ7200
+24-09-2026 16:46:49 | INFO | idms_db2_retrieval_conversion | LRF file count: 1
+24-09-2026 16:46:49 | INFO | idms_db2_retrieval_conversion | LRF logical records parsed: 1
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | Retrieval DB2 COBOL generation completed.
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | Output file created: C:\S\S-Input\Output\Retrieval\Retrieval_24-09-2026_164650.cbl
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | LRF expansion: FIRST VMBTL03-R01 WHERE SWEEP-VMBFAS expanded to VMBFAS WITHIN AR-VMBFRM1.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | LRF expansion: NEXT VMBTL03-R01 WHERE SWEEP-VMBFAS expanded to VMBFAS WITHIN AR-VMBFRM1.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | LRF expansion: rewrote 1 LR-STATUS condition(s) to the IDMS end-of-set token.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | LRF expansion: expanded 2 statement(s), skipped 0.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Mapping scope: DZ01FFTB carries no usable DB2 column mapping, but this program does not reference it. Workbook gap, not a conversion failure.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Mapping scope: DZ01RSTB carries no usable DB2 column mapping, but this program does not reference it. Workbook gap, not a conversion failure.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Mapping scope: 2 of 2 mapping gap(s) relate to tables this program does not reference.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Program flow analyzer: Sheet Mapping rows received: 840
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Program flow analyzer: DCLGEN columns received: 89
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Program flow analyzer: paragraphs detected: 14
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Program flow analyzer: cursor loops detected: 2
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Program flow analyzer: output writes detected: 1
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Program flow analyzer: DB2 date usages detected: 18
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Program flow analyzer: loop sample: record=VMBFAS, set=AR_VMBFRM1, type=cursor, cursor=VMBFAS-C1
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Qualified field rewrite: DA-CPTA-FORM-AS OF VMBFAS -> DA-CPTAFS-479BFAS OF DCLDZBFASTV
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Qualified field rewrite: DA-CR-FORM-AS OF VMBFAS -> DA-CRFMAS-479BFAS OF DCLDZBFASTV
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Qualified field rewrite: NR-IS-FORM-AS OF VMBFAS -> NR-ISFMAS-479BFAS OF DCLDZBFASTV
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Qualified field rewrite: NR-ST-FORM-AS OF VMBFAS -> NR-STFMAS-479BFAS OF DCLDZBFASTV
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Field usage analyzer: records with usage detected: 1
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Field usage analyzer: record=VMBFAS, condition=1, output=0, move_source=0, move_target=0, dclgen=4
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | DB2 infrastructure: DCLGEN includes selected: DZBFASTV
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | DB2 infrastructure: generated infrastructure block inserted.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | DB2 cursor paragraphs: generated 1 cursor paragraph set(s).
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Cursor flow: found 0 inline loop(s) and 3 span loop(s).
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Cursor flow: correlated cursor DZBFASC1 with span loop PERFORM BEHANDELING THRU BEHANDELING-EXIT.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Cursor flow: rewrote span loop exit condition to DZBFASC1-EOC.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Cursor flow: inserted 730-CLOSE-DZBFASC1 after the span loop.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Cursor flow: no cursor loop was converted, so generated fetch calls were retained.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Cursor close guarantee: 730-CLOSE-DZBFASC1 is already performed; no insertion needed.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | DB2 date compare: declared 2 HELP- date helper field(s).
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | DB2 date compare: realigned 2 DATE host(s) in 1 condition(s).
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Timestamp generator: no DB2 write activity found; timestamp audit generation skipped.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Cleanup: removed redundant CONTINUE after removed IDMS statement.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Cleanup: removed residual IDMS conversion comment noise.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Structural safety: output write extraction refused - the guard condition spans 4 lines and cannot be split.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Record materialisation: DATE8-LS is a work field, not a mapped IDMS record; the move was left unchanged.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Record materialisation: SPACES has no Sheet Mapping rows; the whole-record move was left for manual review.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Record materialisation: ZEROES has no Sheet Mapping rows; the whole-record move was left for manual review.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Record materialisation: DA-CCYYMMDD-R is a work field, not a mapped IDMS record; the move was left unchanged.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Record materialisation: WS-TELLER has no Sheet Mapping rows; the whole-record move was left for manual review.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Record materialisation: target F-FORM measured at 478 byte(s); VMBFAS layout is 432 byte(s).
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Record materialisation: expanded F-FORM into the VMBFAS layout (113 field(s), 432 bytes) and generated 83 move statement(s).
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Record materialisation: VMBFAS occupies 432 of 478 byte(s) in F-FORM; 46 trailing byte(s) declared as FILLER so the record length is unchanged.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Record materialisation: W-NR-ID-ISSUE has no Sheet Mapping rows; the whole-record move was left for manual review.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Record materialisation: 11 whole-record move(s) examined, 1 materialised, 10 left for manual review.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Record materialisation: 10 record(s) refused - DATE8-LS (not a record); SPACES (no mapping); ZEROES (no mapping); ZEROES (no mapping); ZEROES (no mapping); DA-CCYYMMDD-R (not a record). The whole-record MOVE was left in place and will be commented by the structural safety pass.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Structural safety: commented 1 unreachable statement(s) after a paragraph EXIT.
+24-09-2026 16:46:50 | WARNING | idms_db2_retrieval_conversion | Procedure indent: normalized 390 statement line(s) to Area B.
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | START LOAD INPUTS
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | Sheet Mapping folder: C:\S\S-Input\Mapping Sheet
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | Sheet Mapping selected: C:\S\S-Input\Mapping Sheet\Excel-Sheet.csv
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | Sheet Mapping rows: 840
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | Sheet Mapping file name: excel-sheet.csv
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | Sheet Mapping file size bytes: 80421
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | CSV/text decoded length: 80421
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | CSV/text sample: Cobol Recrd IDMS,Cobol Zone,IDMS Key,IDMS PIC Clause,Length of Field Bytes,Field end position,DB2 key,New DB2 Record ,New DB2_Field name,New DB2 DataType,Hopex Expression Type,Remarks,Relation,Reference Field Name (Copybook),Reference Field PIC Clause,Cross Application DB2 table,Cross Application DB2 Field Name,Cross Appln DB2 DataType,,Basetype\r\nVMBFC,   02  KY-VMBFC.,,,9,9,,,,,,,,,,,,,,\r\nVMBFC, 03 CT-RK-TGDSV,CALC,PIC X(4 ),4,13,Primary Key,DZMBFCTB,CT_RKTGDSC_479MBFC,CHAR(4),Identifiier(*) NR
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | CSV detected headers: ['Cobol Recrd IDMS', 'Cobol Zone', 'IDMS Key', 'IDMS PIC Clause', 'Length of Field Bytes', 'Field end position', 'DB2 key', 'New DB2 Record', 'New DB2_Field name', 'New DB2 DataType', 'Hopex Expression Type', 'Remarks', 'Relation', 'Reference Field Name (Copybook)', 'Reference Field PIC Clause', 'Cross Application DB2 table', 'Cross Application DB2 Field Name', 'Cross Appln DB2 DataType', '', 'Basetype']
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | CSV parsed useful rows: 840
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | Sheet Mapping populated Cobol Record IDMS rows: 835
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | Sheet Mapping populated source field rows: 630
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | Sheet Mapping populated DB2 table rows: 617
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | Sheet Mapping populated DB2 column rows: 560
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | Sheet Mapping useful source-to-target rows: 370
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | DCLGEN file count: 1
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | DCLGEN 1: C:\S\S-Input\DCLGen\DCLGENs_BFAS.txt
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | DCLGEN 1 text length: 12332
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | DCLGEN total columns: 89
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | DCLGEN input file count: 1
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | DCLGEN file 1 input length: 12332
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | DCLGEN file 1: resolved table name: DZBFASTV
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | DCLGEN file 1: DECLARE section 1 parsed SQL columns: 89
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | DCLGEN file 1: COBOL host field scan found 89 field(s).
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | DCLGEN file 1: SQL columns parsed: 89
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | DCLGEN file 1: COBOL host fields parsed: 89
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | DCLGEN file 1: merged DCLGEN columns: 89
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | DCLGEN file 1 parsed columns: 89
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | DCLGEN total parsed columns: 89
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | Copybook file count: 1
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | Copybook 1: C:\S\S-Input\Copybook\copybook1.txt
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | Copybook 1 text length: 1420
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | Copybook total fields: 5
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | Copybook files: logical copybook lines parsed: 6
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | Copybook files: copybook fields parsed: 5 (data fields: 5, 88-condition names: 0, FILLER skipped: 0)
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | IDMS COBOL source file: C:\S\S-Input\Program\Retrieval\Retrieval.cbl
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | IDMS COBOL source text length: 18206
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | Derived target PROGRAM-ID: VMDZ7200
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | LRF folder: C:\S\S-Input\LRF
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | LRF file count: 1
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | LRF 1: C:\S\S-Input\LRF\SUbSchemaLRF.txt
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | LRF 1 text length: 3746
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | LRF logical records parsed: 1
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | LRF logical records parsed: 1
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | LRF paths parsed for VMBTL03-R01: 6
+24-09-2026 16:46:50 | INFO | idms_db2_retrieval_conversion | LRF logical records in scope for this program: 1 (VMBTL03-R01)

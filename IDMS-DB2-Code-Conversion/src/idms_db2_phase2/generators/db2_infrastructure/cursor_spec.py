@@ -30,6 +30,7 @@ class CursorSpec:
     select_columns: list[str] = field(default_factory=list)
     where_conditions: list[str] = field(default_factory=list)
     order_by_columns: list[str] = field(default_factory=list)
+    cursor_order: int = 0
 
     @property
     def is_declarable(self) -> bool:
@@ -48,7 +49,11 @@ class CursorSpec:
     # Construction
     # =================================================================
     @classmethod
-    def read(cls, spec: dict[str, object]) -> "CursorSpec":
+    def read(
+        cls,
+        spec: dict[str, object],
+        fallback_order: int = 0,
+    ) -> "CursorSpec":
         source = spec or {}
 
         return cls(
@@ -64,12 +69,27 @@ class CursorSpec:
             select_columns=cls._columns(source.get("select_columns")),
             where_conditions=cls._items(source.get("where_conditions")),
             order_by_columns=cls._items(source.get("order_by_columns")),
+            cursor_order=cls._order(
+                source.get("cursor_order"),
+                fallback_order,
+            ),
         )
 
     @classmethod
     def read_all(cls, specs: list[dict[str, object]]) -> list["CursorSpec"]:
-        return [cls.read(spec) for spec in specs or []]
+        """Read every spec, preserving order.
 
+        The list position is passed as the fallback order so that a spec
+        dict built by an older path - one that never set "cursor_order" -
+        still yields a DISTINCT order per cursor. Two cursors sharing an
+        order would share a QUERYNO, and DB2 EXPLAIN could no longer tell
+        their access paths apart.
+        """
+        return [
+            cls.read(spec, fallback_order=index)
+            for index, spec in enumerate(specs or [])
+        ]
+    
     # =================================================================
     # Cleaning
     # =================================================================
@@ -102,3 +122,18 @@ class CursorSpec:
             out.append(text)
 
         return out
+    
+    @staticmethod
+    def _order(value: object, fallback: int = 0) -> int:
+        """Cursor position as a non-negative int, never raising.
+
+        A missing, blank or non-numeric value falls back to the caller's
+        list position rather than to a shared constant, so uniqueness
+        survives a malformed spec.
+        """
+        try:
+            order = int(str(value).strip())
+        except (TypeError, ValueError):
+            return max(0, int(fallback))
+
+        return order if order >= 0 else max(0, int(fallback))

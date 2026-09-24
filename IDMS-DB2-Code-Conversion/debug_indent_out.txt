@@ -1,0 +1,904 @@
+000010 IDENTIFICATION DIVISION.                                         00010000
+000020*========================                                         00020000
+000030 PROGRAM-ID. VMDZ7200.                                            00030000
+000040 AUTHOR.   J-M BOOGAERTS  88/07.                                  00040000
+000050                                                                  00050000
+000060******************************************************************00060000
+000070*                                                                 00070000
+000080*    ARCHIVAGE :  EXTRACT DES FORMULAIRES A ARCHIVER              00080000
+000090*    =========    (SOUSCRIPTIONS ET ANNULATIONS SOUSCRIPTIONS)    00090000
+000100*                                                                 00100000
+000110* WULTEPUTTE KRISTINE : (10/7/91) :                               00110000
+000120*                                                                 00120000
+000130* TOEVOEGEN VAN NIEUWE PLAGES VOOR BCI1                           00130000
+000140*                                                                 00140000
+000150* DE SCHEPPER KOEN    : (18/12/92) :                              00150000
+000160*                                                                 00160000
+000170* AANPASSING VOOR SLIK : UITBREIDING FORM 270 -> 390              00170000
+000180*                                                                 00180000
+000190* CLEMENT J. (06/93) : TOEVOEGEN PLAGES                           00190000
+000200*                                                                 00200000
+000210* DE SCHEPPER KOEN     (04/02/94) :                               00210000
+000220*    PROGRAMMA VOLLEDIG HERSCHREVEN : GEEN SELECTIE OP            00220000
+000230*    WAARDECODE MEER.                                             00230000
+000240*                                                                 00240000
+000250* POMPONIO S (03/97)                                              00250000
+000260*    AANPASSING EURO2000 : PARMDATE EN 8 POSITIONS                00260000
+000270*                          RECORD VMBFAS 388 -> 432 BYTES         00270000
+000280*                                                                 00280000
+000290* J-M BOOGAERTS 2005/02                                           00290000
+000300*    INTÉGRATION ARCHIVAGE IUNS P8                                00300000
+000310*                                                                 00310000
+000320******************************************************************00320000
+000330                                                                  00330000
+000340 ENVIRONMENT DIVISION.                                            00340000
+000350*=====================                                            00350000
+000360 CONFIGURATION SECTION.                                           00360000
+000370*----------------------                                           00370000
+000380 SPECIAL-NAMES.                                                   00380000
+000390     DECIMAL-POINT IS COMMA.                                      00390000
+000400*                                                                 00400000
+000410 INPUT-OUTPUT SECTION.                                            00410000
+000420*---------------------                                            00420000
+000430 FILE-CONTROL.                                                    00430000
+000440     SELECT DAARCH   ASSIGN TO UT-S-DD005.                        00440000
+000450     SELECT FORM     ASSIGN TO UT-S-DD010.                        00450000
+000460*                                                                 00460000
+000470*---------------------                                            00470000
+000480/                                                                 00480000
+000490 DATA DIVISION.                                                   00490000
+000500*==============                                                   00500000
+000510 FILE SECTION.                                                    00510000
+000520*-------------                                                    00520000
+000530*    ----- DATE ARCHIVAGE -----                                   00530000
+000540*                                                                 00540000
+000550 FD  DAARCH     RECORDING F                                       00550000
+000560                RECORD CONTAINS 20                                00560000
+000570                BLOCK CONTAINS 0                                  00570000
+000580                LABEL RECORD STANDARD.                            00580000
+000590 01  DAARCH-REC                PIC X(20).                         00590000
+000600*                                                                 00600000
+000610*    ----- GESELECTEERDE FORMULIEREN -----                        00610000
+000620*                                                                 00620000
+000630 FD  FORM       RECORDING F                                       00630000
+000640                RECORD CONTAINS 530                               00640000
+000650                BLOCK CONTAINS 0                                  00650000
+000660                LABEL RECORD STANDARD.                            00660000
+000670 01  FORM-REC                  PIC X(530).                        00670000
+000680/                                                                 00680000
+000690*---------------                                                  00690000
+000700*                                                                 00700000
+000710 WORKING-STORAGE SECTION.                                         00710000
+000720*------------------------                                         00720000
+000730*                                                                 00730000
+000740 77  USERABEN                  PIC X(8)   VALUE 'USERABEN'.       00740000
+000750 77  WS-TELLER                 PIC S9(11) COMP-3 VALUE ZERO.      00750000
+000760*                                                                 00760000
+000770 01  W-NR-IS-FORM-AS           PIC 9(9).                          00770000
+000780 01  FILLER REDEFINES W-NR-IS-FORM-AS.                            00780000
+000790     05  W-NR-ID-ISSUE         PIC 9(7).                          00790000
+000800     05  W-NR-CD-ISSUE         PIC 9(2).                          00800000
+000810*                                                                 00810000
+000820 01  REC-FORM.                                                    00820000
+000830     05  F-FORM.                                                  00830000
+000830*DB2 MATERIALISED IDMS RECORD VMBFAS                              00830000
+000830       06  VMBFAS.                                                00830000
+000830         07  KY-VMBFAS.                                           00830000
+000830           08  NR-RK-GOOD-V02.                                    00830000
+000830             09  CT-RK-TGDSERV.                                   00830000
+000830               10  CT-RK-TGDSV             PIC X(4).              00830000
+000830               10  CT-RK-TGOOD    REDEFINES CT-RK-TGDSV           00830000
+000830                   PIC 9(4).                                      00830000
+000830             09  GR-ID-GOOD-V02.                                  00830000
+000830               10  NR-CIO-FORM-AS          PIC 9(8) COMP-3.       00830000
+000830               10  DA-CR-FORM-AS           PIC 9(8) COMP-3.       00830000
+000830               10  NR-ID-FORM-AS           PIC 9(6) COMP-3.       00830000
+000830               10  CT-OP-FORM-AS.                                 00830000
+000830                 11  CT-OPD-FORM-AS          PIC S9(3) COMP-3.    00830000
+000830                 11  CT-OPG-FORM-AS          PIC 9(3) COMP-3.     00830000
+000830               10  FILLER                  PIC X(2).              00830000
+000830         07  AT-FORM-AS.                                          00830000
+000830           08  NR-CIW-FORM-AS          PIC X(8).                  00830000
+000830           08  DA-VA-FORM-AS.                                     00830000
+000830             09  DA-VA-FORM-AS-Y         PIC 9(4).                00830000
+000830             09  DA-VA-FORM-AS-M         PIC 9(2).                00830000
+000830             09  DA-VA-FORM-AS-D         PIC 9(2).                00830000
+000830           08  CO-VM-FORM-AS           PIC X(1).                  00830000
+000830           08  NR-IS-FORM-AS           PIC 9(9).                  00830000
+000830           08  RA-RT-FORM-AS           PIC S9(3)V9(3) COMP-3.     00830000
+000830           08  RA-CP-FORM-AS           PIC S9(3)V9(3) COMP-3.     00830000
+000830           08  RA-BASE-FORM-AS         PIC S9(3)V9(3) COMP-3.     00830000
+000830           08  DA-UB-FORM-AS.                                     00830000
+000830             09  DA-UB-FORM-AS-Y         PIC 9(4).                00830000
+000830             09  DA-UB-FORM-AS-M         PIC 9(2).                00830000
+000830             09  DA-UB-FORM-AS-D         PIC 9(2).                00830000
+000830           08  DA-UE-FORM-AS.                                     00830000
+000830             09  DA-UE-FORM-AS-Y         PIC 9(4).                00830000
+000830             09  DA-UE-FORM-AS-M         PIC 9(2).                00830000
+000830             09  DA-UE-FORM-AS-D         PIC 9(2).                00830000
+000830           08  DU-ST-FORM-AS           PIC 9(3).                  00830000
+000830           08  RA-PS-FORM-AS           PIC S9(3)V9(3) COMP-3.     00830000
+000830           08  RA-PR-FORM-AS           PIC S9(3)V9(3) COMP-3.     00830000
+000830           08  AM-CNS-FORM-AS          PIC S9(13)V99 COMP-3.      00830000
+000830           08  AM-PS-FORM-AS           PIC S9(13)V99 COMP-3.      00830000
+000830           08  NB-FI-FORM-AS           PIC 9(3).                  00830000
+000830           08  AM-FIN-FORM-AS          PIC S9(13)V99 COMP-3.      00830000
+000830           08  CO-RI-FORM-AS           PIC X(1).                  00830000
+000830           08  NR-IDR-FORM-AS          PIC 9(6).                  00830000
+000830           08  DA-UER-FORM-AS.                                    00830000
+000830             09  DA-UER-FORM-AS-Y        PIC 9(4).                00830000
+000830             09  DA-UER-FORM-AS-M        PIC 9(2).                00830000
+000830             09  DA-UER-FORM-AS-D        PIC 9(2).                00830000
+000830           08  AM-FBA-FORM-AS          PIC S9(13)V99 COMP-3.      00830000
+000830           08  AM-FBB-FORM-AS          PIC S9(13)V99 COMP-3.      00830000
+000830           08  CO-RM-FORM-AS           PIC X(1).                  00830000
+000830           08  RA-FB-FORM-AS           PIC S9(3)V9(3) COMP-3.     00830000
+000830           08  NB-FB-FORM-AS           PIC 9(2).                  00830000
+000830           08  AM-FBN-FORM-AS          PIC S9(13)V99 COMP-3.      00830000
+000830           08  RA-TI-FORM-AS           PIC 9(2)V9(2).             00830000
+000830           08  AM-CND-FORM-AS          PIC S9(13)V99 COMP-3.      00830000
+000830           08  AM-CNDN-FORM-AS         PIC S9(13)V99 COMP-3.      00830000
+000830           08  AM-CNSN-FORM-AS         PIC S9(13)V99 COMP-3.      00830000
+000830           08  NR-CD-FORM-AS           PIC 9(4).                  00830000
+000830           08  CT-SL-FORM-AS           PIC X(1).                  00830000
+000830           08  NR-ST-FORM-AS           PIC 9(13).                 00830000
+000830           08  CX-TW-FORM-AS           PIC X(1).                  00830000
+000830           08  NR-DS-FORM-AS           PIC 9(12).                 00830000
+000830           08  NR-IDX-FORM-AS          PIC 9(6).                  00830000
+000830           08  CO-LA-FORM-AS           PIC X(1).                  00830000
+000830           08  AM-INTER-FORM-AS        PIC S9(13)V99 COMP-3.      00830000
+000830           08  NB-GROUP-FORM-AS        PIC 9(3).                  00830000
+000830           08  NR-PRGRP-FORM-AS        PIC 9(6).                  00830000
+000830           08  NR-NEGRP-FORM-AS        PIC 9(6).                  00830000
+000830           08  NR-FIGRP-FORM-AS        PIC 9(6).                  00830000
+000830           08  NR-SEGRP-FORM-AS        PIC 9(3).                  00830000
+000830         07  NS-IDCP-FORM-AS         PIC 9(3).                    00830000
+000830         07  AM-CNSSP-FORM-AS        PIC S9(13)V99 COMP-3.        00830000
+000830         07  RA-CPTOT-FORM-AS        PIC S9(3)V9(3) COMP-3.       00830000
+000830         07  CO-CP-FORM-AS           PIC X.                       00830000
+000830         07  CO-PERIN-FORM-AS        PIC X.                       00830000
+000830         07  NS-ID-FORM-AS           PIC 9(2).                    00830000
+000830         07  CO-DEV-FORM-AS          PIC X(3).                    00830000
+000830         07  NB-KRDEV-FORM-AS        PIC S9(6)V9(5).              00830000
+000830         07  AM-BSDEV-FORM-AS        PIC S9(13)V99 COMP-3.        00830000
+000830         07  CO-TYP-FORM-AS          PIC X(3).                    00830000
+000830         07  CO-SUBTP-FORM-AS        PIC X(3).                    00830000
+000830         07  CO-CONT-FORM-AS         PIC X(3).                    00830000
+000830         07  CO-TPVGL-FORM-AS        PIC X(2).                    00830000
+000830         07  AM-VGL-FORM-AS          PIC S9(13)V99 COMP-3.        00830000
+000830         07  NR-PROD-FORM-AS         PIC X(4).                    00830000
+000830         07  DA-ACTVR-FORM-AS.                                    00830000
+000830           08  DY-ACTVR-FORM-AS        PIC 9(4).                  00830000
+000830           08  DM-ACTVR-FORM-AS        PIC 9(2).                  00830000
+000830           08  DD-ACTVR-FORM-AS        PIC 9(2).                  00830000
+000830         07  DA-INVTR-FORM-AS.                                    00830000
+000830           08  DY-INVTR-FORM-AS        PIC 9(4).                  00830000
+000830           08  DM-INVTR-FORM-AS        PIC 9(2).                  00830000
+000830           08  DD-INVTR-FORM-AS        PIC 9(2).                  00830000
+000830         07  RA-QZTTI-FORM-AS        PIC S9(3)V999 COMP-3.        00830000
+000830         07  RA-DGTTI-FORM-AS        PIC S9(3)V9(3) COMP-3.       00830000
+000830         07  NB-DGTTI-FORM-AS        PIC 9(2).                    00830000
+000830         07  AM-DGTTI-FORM-AS        PIC S9(13)V99 COMP-3.        00830000
+000830         07  ST-DGTTI-FORM-AS        PIC 9(1).                    00830000
+000830         07  ST-PRRW-FORM-AS         PIC 9(1).                    00830000
+000830         07  RA-GIFT-FORM-AS         PIC S9(3)V9(3) COMP-3.       00830000
+000830         07  AM-GIFT-FORM-AS         PIC S9(13)V99 COMP-3.        00830000
+000830         07  ST-VOORH-FORM-AS        PIC 9(1).                    00830000
+000830         07  DA-CPTA-FORM-AS.                                     00830000
+000830           08  DY-CPTA-FORM-AS         PIC 9(4).                  00830000
+000830           08  DM-CPTA-FORM-AS         PIC 9(2).                  00830000
+000830           08  DD-CPTA-FORM-AS         PIC 9(2).                  00830000
+000830         07  CO-EXTOB-FORM-AS        PIC X(1).                    00830000
+000830         07  CO-PLTOB-FORM-AS        PIC X(1).                    00830000
+000830         07  RA-TOB-FORM-AS          PIC S9(3)V9(3) COMP-3.       00830000
+000830         07  AM-TOB-FORM-AS          PIC S9(13)V99 COMP-3.        00830000
+000830         07  RA-TARPH-FORM-AS        PIC S9(3)V9(3) COMP-3.       00830000
+000830         07  AM-TARPH-FORM-AS        PIC S9(13)V99 COMP-3.        00830000
+000830         07  AM-BASE-FORM-AS         PIC S9(13)V99 COMP-3.        00830000
+000830         07  AM-FLK-FORM-AS          PIC S9(3)V9(2) COMP-3.       00830000
+000830         07  FILLER                  PIC X(0014).                 00830000
+000830       06  FILLER                  PIC X(46).                     00830000
+000840     05  F-SW-ARCH             PIC X.                             00840000
+000850     05  F-SW-VMBFGD           PIC X.                             00850000
+000860     05  F-TELLER              PIC S9(11) COMP-3.                 00860000
+000870     05  F-NR-IS               PIC 9(7).                          00870000
+000880     05  F-NR-ST               PIC 9(13).                         00880000
+000890     05  FILLER                PIC X(24).                         00890000
+000900*                                                                 00900000
+000910 COPY VMBZ270I.                                                   00910000
+000920*                                                                 00920000
+000930 01  WS-DATUMS.                                                   00930000
+000940     02  DATE-YMD.                                                00940000
+000950         03  D-YEAR            PIC 9(2).                          00950000
+000960         03  D-MONTH           PIC 9(2).                          00960000
+000970         03  D-DAY             PIC 9(2).                          00970000
+000980     02  DATE-YMD8.                                               00980000
+000990         03  D-CENT            PIC 9(2).                          00990000
+001000         03  D-YEAR            PIC 9(2).                          01000000
+001010         03  D-MONTH           PIC 9(2).                          01010000
+001020         03  D-DAY             PIC 9(2).                          01020000
+001030     02  DATE-DMY8.                                               01030000
+001040         03  D-DAY             PIC 9(2).                          01040000
+001050         03  D-MONTH           PIC 9(2).                          01050000
+001060         03  D-CENT            PIC 9(2).                          01060000
+001070         03  D-YEAR            PIC 9(2).                          01070000
+001080*                                                                 01080000
+001090/                                                                 01090000
+001100*                                                                 01100000
+001110*                                                                 01110000
+001120*                                                                 01120000
+001130*                                                                 01130000
+001140*                                                                 01140000
+001150*                                                                 01150000
+001160/                                                                 01160000
+001170                                                                  01170000
+001180*DB2 INFRASTRUCTURE - SQLCA, INCLUDES, FLAGS                   *  01180000
+001190     EXEC SQL INCLUDE SQLERRWS END-EXEC.                          01190000
+001200     EXEC SQL INCLUDE SQLCA END-EXEC.                             01200000
+001210     EXEC SQL INCLUDE DZBFASTV END-EXEC.                          01210000
+001220                                                                  01220000
+001230*DB2 CURSOR END-OF-CURSOR FLAGS                                *  01230000
+001240 01  WS-DZBFASC1-FLAG               PIC X.                        01240000
+001250     88  DZBFASC1-NOT-EOC           VALUE 'N'.                    01250000
+001260     88  DZBFASC1-EOC               VALUE 'Y'.                    01260000
+001270                                                                  01270000
+001280                                                                  01280000
+001290*DB2 CURSOR DECLARATIONS                                       *  01290000
+001300     EXEC SQL                                                     01300000
+001310       DECLARE DZBFASC1 CURSOR WITH HOLD FOR                      01310000
+001320       SELECT                                                     01320000
+001330         CT_RKTGDSV_479BFAS                                       01330000
+001340        , NR_CIOFMAS_479BFAS                                      01340000
+001350        , DA_CRFMAS_479BFAS                                       01350000
+001360        , NR_IDFMAS_479BFAS                                       01360000
+001370        , CT_OPD_479BFAS                                          01370000
+001380        , CT_OPG_479BFAS                                          01380000
+001390        , NR_CIWFMAS_479BFAS                                      01390000
+001400        , DA_VAFMAS_479BFAS                                       01400000
+001410        , CO_VMFMAS_479BFAS                                       01410000
+001420        , NR_ISFMAS_479BFAS                                       01420000
+001430        , RA_RTFMAS_479BFAS                                       01430000
+001440        , RA_CPFMAS_479BFAS                                       01440000
+001450        , RA_BASFMAS_479BFAS                                      01450000
+001460        , DA_UBFMAS_479BFAS                                       01460000
+001470        , DA_UEFMAS_479BFAS                                       01470000
+001480        , DU_STFMAS_479BFAS                                       01480000
+001490        , RA_PSFMAS_479BFAS                                       01490000
+001500        , RA_PRFMAS_479BFAS                                       01500000
+001510        , AM_CNSFMAS_479BFAS                                      01510000
+001520        , AM_PSFMAS_479BFAS                                       01520000
+001530        , NB_FIFMAS_479BFAS                                       01530000
+001540        , AM_FINFMAS_479BFAS                                      01540000
+001550        , CO_RIFMAS_479BFAS                                       01550000
+001560        , NR_IDRFMAS_479BFAS                                      01560000
+001570        , DA_UERFMAS_479BFAS                                      01570000
+001580        , AM_FBAFMAS_479BFAS                                      01580000
+001590        , AM_FBBFMAS_479BFAS                                      01590000
+001600        , CO_RMFMAS_479BFAS                                       01600000
+001610        , RA_FBFMAS_479BFAS                                       01610000
+001620        , NB_FBFMAS_479BFAS                                       01620000
+001630        , AM_FBNFMAS_479BFAS                                      01630000
+001640        , RA_TIFMAS_479BFAS                                       01640000
+001650        , AM_CNDFMAS_479BFAS                                      01650000
+001660        , AM_CNDNFAS_479BFAS                                      01660000
+001670        , AM_CNSNFAS_479BFAS                                      01670000
+001680        , NR_CDFMAS_479BFAS                                       01680000
+001690        , CT_SLFMAS_479BFAS                                       01690000
+001700        , NR_STFMAS_479BFAS                                       01700000
+001710        , CX_TWFMAS_479BFAS                                       01710000
+001720        , NR_DSFMAS_479BFAS                                       01720000
+001730        , NR_IDXFMAS_479BFAS                                      01730000
+001740        , CO_LAFMAS_479BFAS                                       01740000
+001750        , AM_INTFMAS_479BFAS                                      01750000
+001760        , NB_GRPFMAS_479BFAS                                      01760000
+001770        , NR_PRGRPFS_479BFAS                                      01770000
+001780        , NR_NEGRPFS_479BFAS                                      01780000
+001790        , NR_FIGRPFS_479BFAS                                      01790000
+001800        , NR_SEGRPFS_479BFAS                                      01800000
+001810        , NS_IDCPFS_479BFAS                                       01810000
+001820        , AM_CNSSPFS_479BFAS                                      01820000
+001830        , RA_CPTOTFS_479BFAS                                      01830000
+001840        , CO_CPFMAS_479BFAS                                       01840000
+001850        , CO_PERINFS_479BFAS                                      01850000
+001860        , NS_IDFMAS_479BFAS                                       01860000
+001870        , CO_DEVFMAS_479BFAS                                      01870000
+001880        , NB_KRDEVFS_479BFAS                                      01880000
+001890        , AM_BSDECFS_479BFAS                                      01890000
+001900        , CO_TYPFMAS_479BFAS                                      01900000
+001910        , CO_SUBTPFS_479BFAS                                      01910000
+001920        , CO_CONTFS_479BFAS                                       01920000
+001930        , CO_TPVGLFS_479BFAS                                      01930000
+001940        , AM_VGLFMAS_479BFAS                                      01940000
+001950        , NR_PRDFMAS_479BFAS                                      01950000
+001960        , DA_ACTVRFS_479BFAS                                      01960000
+001970        , DA_INVTRFS_479BFAS                                      01970000
+001980        , RA_QZTTIFS_479BFAS                                      01980000
+001990        , RA_DGTTIFS_479BFAS                                      01990000
+002000        , NB_DGTTIFS_479BFAS                                      02000000
+002010        , AM_DGTTIFS_479BFAS                                      02010000
+002020        , ST_DGTTIFS_479BFAS                                      02020000
+002030        , ST_PRRWFS_479BFAS                                       02030000
+002040        , RA_GIFTFS_479BFAS                                       02040000
+002050        , AM_GIFTFS_479BFAS                                       02050000
+002060        , ST_VOORHFS_479BFAS                                      02060000
+002070        , DA_CPTAFS_479BFAS                                       02070000
+002080        , CO_EXTOBFS_479BFAS                                      02080000
+002090        , CO_PLTOBFS_479BFAS                                      02090000
+002100        , RA_TOBFS_479BFAS                                        02100000
+002110        , AM_TOBFS_479BFAS                                        02110000
+002120        , RA_TARPHFS_479BFAS                                      02120000
+002130        , AM_TARPH_479BFAS                                        02130000
+002140        , AM_BASEFS_479BFAS                                       02140000
+002150        , AM_FLKFS_479BFAS                                        02150000
+002160        , NR_CIOFMAS_479SIAS                                      02160000
+002170        , NR_IDFMAS_479SIAS                                       02170000
+002180        , NR_ID_479BFAS                                           02180000
+002190       FROM DZBFASTV                                              02190000
+002200       FOR READ ONLY                                              02200000
+002210       QUERYNO 119                                                02210000
+002220     END-EXEC.                                                    02220000
+002230                                                                  02230000
+002240*DB2 DATE CONVERSION WORKING STORAGE                              02240000
+002250 01  WS-DATUMVELDEN.                                              02250000
+002260     03  DA-CCYYMMDD.                                             02260000
+002270         05  CC                    PIC 99       VALUE ZERO.       02270000
+002280         05  YY                    PIC 99       VALUE ZERO.       02280000
+002290         05  MM                    PIC 99       VALUE ZERO.       02290000
+002300         05  DD                    PIC 99       VALUE ZERO.       02300000
+002310     03  DA-CCYYMMDD-R REDEFINES DA-CCYYMMDD.                     02310000
+002320         05  CCYY                  PIC 9999.                      02320000
+002330         05  MM                    PIC 99.                        02330000
+002340         05  DD                    PIC 99.                        02340000
+002350     03  DA-DD-MM-CCYY.                                           02350000
+002360         05  DD                    PIC 9(02).                     02360000
+002370         05  TE-MARKER5            PIC X        VALUE '.'.        02370000
+002380         05  MM                    PIC 9(02).                     02380000
+002390         05  TE-MARKER6            PIC X        VALUE '.'.        02390000
+002400         05  CCYY                  PIC 9(04).                     02400000
+002410     02  HELP-DA-CPTAFS-479BFAS         PIC 9(8)     VALUE ZEROES.02410000
+002420     02  HELP-DA-CRFMAS-479BFAS         PIC 9(8)     VALUE ZEROES.02420000
+002430                                                                  02430000
+002440 LINKAGE SECTION.                                                 02440000
+002450 01  PARAM-ZONEDO.                                                02450000
+002460     02  L-PARAM          PIC S9(4)   COMP.                       02460000
+002470     02  DATUMLS.                                                 02470000
+002480         03  DATE-IND     PIC X.                                  02480000
+002490         03  DATE8-LS     PIC 9(8).                               02490000
+002500/                                                                 02500000
+002510 PROCEDURE DIVISION USING PARAM-ZONEDO.                           02510000
+002520*DB2: Initialize generated DCLGEN host groups.                    02520000
+002530     INITIALIZE DCLDZBFASTV.                                      02530000
+002540*======================================                           02540000
+002550     PERFORM BEGIN-PROGRAMMA THRU BEGIN-PROGRAMMA-EXIT.           02550000
+002560     PERFORM BEHANDELING THRU BEHANDELING-EXIT                    02560000
+002570     UNTIL DZBFASC1-EOC.                                          02570000
+002580     PERFORM 730-CLOSE-DZBFASC1.                                  02580000
+002590     PERFORM EINDE-PROGRAMMA THRU EINDE-PROGRAMMA-EXIT.           02590000
+002600*                                                                 02600000
+002610     GOBACK.                                                      02610000
+002620*                                                                 02620000
+002630*                                                                 02630000
+002640 BEGIN-PROGRAMMA.                                                 02640000
+002650*----------------                                                 02650000
+002660     IF DATE-IND = '0'                                            02660000
+002670        ACCEPT DATE-YMD         FROM DATE                         02670000
+002680        MOVE CORR DATE-YMD    TO DATE-DMY8                        02680000
+002690        IF D-YEAR OF DATE-YMD > 60                                02690000
+002700           MOVE 19            TO D-CENT OF DATE-DMY8              02700000
+002710        ELSE                                                      02710000
+002720           MOVE 20            TO D-CENT OF DATE-DMY8              02720000
+002730        END-IF                                                    02730000
+002740     ELSE                                                         02740000
+002750        MOVE DATE8-LS         TO DATE-DMY8                        02750000
+002760        MOVE CORR DATE-DMY8   TO DATE-YMD                         02760000
+002770     END-IF.                                                      02770000
+002780     MOVE CORR DATE-DMY8      TO DATE-YMD8.                       02780000
+002790                                                                  02790000
+002800*                                                                 02800000
+002810     MOVE SPACES TO REC-FORM.                                     02810000
+002820*                                                                 02820000
+002830     OPEN INPUT  DAARCH                                           02830000
+002840     OUTPUT FORM.                                                 02840000
+002850     READ DAARCH INTO VMBZ270I-REC                                02850000
+002860        AT END                                                    02860000
+002870        DISPLAY 'VM7BD200: ** DATE ARCHIVAGE NOT OK **'           02870000
+002880        CALL USERABEN.                                            02880000
+002890        DISPLAY 'DATE ARCH : ' DA-ARCH-YMD.                       02890000
+002900        CLOSE DAARCH.                                             02900000
+002910*                                                                 02910000
+002920        MOVE 'VM7BD200'          TO PROGRAM-NAME.                 02920000
+002930*                                                                 02930000
+002940*DB2: Expanded LRF FIRST VMBTL03-R01 WHERE SWEEP-VMBFAS -> VMBFAS 02940000
+002950*  WITHIN AR-VMBFRM1.                                             02950000
+002960*DB2: Converted OBTAIN FIRST VMBFAS WITHIN AR-VMBFRM1.            02960000
+002970        PERFORM 710-OPEN-DZBFASC1.                                02970000
+002980        PERFORM 720-FETCH-DZBFASC1.                               02980000
+002990*                                                                 02990000
+003000 BEGIN-PROGRAMMA-EXIT.                                            03000000
+003010*                                                                 03010000
+003020     EXIT.                                                        03020000
+003030*                                                                 03030000
+003040*                                                                 03040000
+003050 BEHANDELING.                                                     03050000
+003060*------------                                                     03060000
+003070*DB2: realigned 2 DB2 DATE host(s) before comparison.             03070000
+003080     MOVE ZEROES TO DA-CCYYMMDD                                   03080000
+003090     MOVE ZEROES TO HELP-DA-CPTAFS-479BFAS                        03090000
+003100     MOVE DA-CPTAFS-479BFAS OF DCLDZBFASTV TO DA-DD-MM-CCYY       03100000
+003110     EVALUATE TRUE                                                03110000
+003120       WHEN DA-DD-MM-CCYY = '01.01.0001'                          03120000
+003130            MOVE ZEROES TO DA-CCYYMMDD-R                          03130000
+003140       WHEN DA-DD-MM-CCYY = '31.12.9999'                          03140000
+003150            MOVE '99999999' TO DA-CCYYMMDD-R                      03150000
+003160       WHEN OTHER                                                 03160000
+003170            MOVE CCYY OF DA-DD-MM-CCYY TO CCYY OF DA-CCYYMMDD-R   03170000
+003180            MOVE MM   OF DA-DD-MM-CCYY TO MM   OF DA-CCYYMMDD-R   03180000
+003190            MOVE DD   OF DA-DD-MM-CCYY TO DD   OF DA-CCYYMMDD-R   03190000
+003200     END-EVALUATE                                                 03200000
+003210     MOVE DA-CCYYMMDD-R TO HELP-DA-CPTAFS-479BFAS                 03210000
+003220     MOVE ZEROES TO DA-CCYYMMDD                                   03220000
+003230     MOVE ZEROES TO HELP-DA-CRFMAS-479BFAS                        03230000
+003240     MOVE DA-CRFMAS-479BFAS OF DCLDZBFASTV TO DA-DD-MM-CCYY       03240000
+003250     EVALUATE TRUE                                                03250000
+003260       WHEN DA-DD-MM-CCYY = '01.01.0001'                          03260000
+003270            MOVE ZEROES TO DA-CCYYMMDD-R                          03270000
+003280       WHEN DA-DD-MM-CCYY = '31.12.9999'                          03280000
+003290            MOVE '99999999' TO DA-CCYYMMDD-R                      03290000
+003300       WHEN OTHER                                                 03300000
+003310            MOVE CCYY OF DA-DD-MM-CCYY TO CCYY OF DA-CCYYMMDD-R   03310000
+003320            MOVE MM   OF DA-DD-MM-CCYY TO MM   OF DA-CCYYMMDD-R   03320000
+003330            MOVE DD   OF DA-DD-MM-CCYY TO DD   OF DA-CCYYMMDD-R   03330000
+003340     END-EVALUATE                                                 03340000
+003350     MOVE DA-CCYYMMDD-R TO HELP-DA-CRFMAS-479BFAS                 03350000
+003360     IF (HELP-DA-CPTAFS-479BFAS < DA-ARCH-YMD  AND                03360000
+003370        HELP-DA-CPTAFS-479BFAS NOT = '00000000') OR               03370000
+003380        (HELP-DA-CRFMAS-479BFAS < DA-ARCH-YMD AND                 03380000
+003390        HELP-DA-CPTAFS-479BFAS = '00000000')                      03390000
+003400        ADD 1              TO WS-TELLER                           03400000
+003410        MOVE WS-TELLER     TO F-TELLER                            03410000
+003420*DB2: Materialised VMBFAS from DCLDZBFASTV - 83 field move(s).    03420000
+003420        MOVE CT-RKTGDSV-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        CT-RK-TGDSV OF VMBFAS                                     03420000
+003420        MOVE NR-CIOFMAS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        NR-CIO-FORM-AS OF VMBFAS                                  03420000
+003420        MOVE DA-CRFMAS-479BFAS OF DCLDZBFASTV TO DA-DD-MM-CCYY    03420000
+003420        EVALUATE TRUE                                             03420000
+003420          WHEN DA-DD-MM-CCYY = '01.01.0001'                       03420000
+003420               MOVE ZEROES TO DA-CCYYMMDD-R                       03420000
+003420          WHEN DA-DD-MM-CCYY = '31.12.9999'                       03420000
+003420               MOVE '99999999' TO DA-CCYYMMDD-R                   03420000
+003420          WHEN OTHER                                              03420000
+003420               MOVE CCYY OF DA-DD-MM-CCYY TO CCYY OF              03420000
+003420               DA-CCYYMMDD-R                                      03420000
+003420               MOVE MM OF DA-DD-MM-CCYY TO MM OF DA-CCYYMMDD-R    03420000
+003420               MOVE DD OF DA-DD-MM-CCYY TO DD OF DA-CCYYMMDD-R    03420000
+003420        END-EVALUATE                                              03420000
+003420        MOVE DA-CCYYMMDD-R TO DA-CR-FORM-AS OF VMBFAS             03420000
+003420        MOVE NR-IDFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        NR-ID-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE CT-OPD-479BFAS OF DCLDZBFASTV TO                     03420000
+003420        CT-OPD-FORM-AS OF VMBFAS                                  03420000
+003420        MOVE CT-OPG-479BFAS OF DCLDZBFASTV TO                     03420000
+003420        CT-OPG-FORM-AS OF VMBFAS                                  03420000
+003420        MOVE NR-CIWFMAS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        NR-CIW-FORM-AS OF VMBFAS                                  03420000
+003420        MOVE DA-VAFMAS-479BFAS OF DCLDZBFASTV TO DA-DD-MM-CCYY    03420000
+003420        EVALUATE TRUE                                             03420000
+003420          WHEN DA-DD-MM-CCYY = '01.01.0001'                       03420000
+003420               MOVE ZEROES TO DA-CCYYMMDD-R                       03420000
+003420          WHEN DA-DD-MM-CCYY = '31.12.9999'                       03420000
+003420               MOVE '99999999' TO DA-CCYYMMDD-R                   03420000
+003420          WHEN OTHER                                              03420000
+003420               MOVE CCYY OF DA-DD-MM-CCYY TO CCYY OF              03420000
+003420               DA-CCYYMMDD-R                                      03420000
+003420               MOVE MM OF DA-DD-MM-CCYY TO MM OF DA-CCYYMMDD-R    03420000
+003420               MOVE DD OF DA-DD-MM-CCYY TO DD OF DA-CCYYMMDD-R    03420000
+003420        END-EVALUATE                                              03420000
+003420        MOVE DA-CCYYMMDD-R TO DA-VA-FORM-AS OF VMBFAS             03420000
+003420        MOVE CO-VMFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        CO-VM-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE NR-ISFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        NR-IS-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE RA-RTFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        RA-RT-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE RA-CPFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        RA-CP-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE RA-BASFMAS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        RA-BASE-FORM-AS OF VMBFAS                                 03420000
+003420        MOVE DA-UBFMAS-479BFAS OF DCLDZBFASTV TO DA-DD-MM-CCYY    03420000
+003420        EVALUATE TRUE                                             03420000
+003420          WHEN DA-DD-MM-CCYY = '01.01.0001'                       03420000
+003420               MOVE ZEROES TO DA-CCYYMMDD-R                       03420000
+003420          WHEN DA-DD-MM-CCYY = '31.12.9999'                       03420000
+003420               MOVE '99999999' TO DA-CCYYMMDD-R                   03420000
+003420          WHEN OTHER                                              03420000
+003420               MOVE CCYY OF DA-DD-MM-CCYY TO CCYY OF              03420000
+003420               DA-CCYYMMDD-R                                      03420000
+003420               MOVE MM OF DA-DD-MM-CCYY TO MM OF DA-CCYYMMDD-R    03420000
+003420               MOVE DD OF DA-DD-MM-CCYY TO DD OF DA-CCYYMMDD-R    03420000
+003420        END-EVALUATE                                              03420000
+003420        MOVE DA-CCYYMMDD-R TO DA-UB-FORM-AS OF VMBFAS             03420000
+003420        MOVE DA-UEFMAS-479BFAS OF DCLDZBFASTV TO DA-DD-MM-CCYY    03420000
+003420        EVALUATE TRUE                                             03420000
+003420          WHEN DA-DD-MM-CCYY = '01.01.0001'                       03420000
+003420               MOVE ZEROES TO DA-CCYYMMDD-R                       03420000
+003420          WHEN DA-DD-MM-CCYY = '31.12.9999'                       03420000
+003420               MOVE '99999999' TO DA-CCYYMMDD-R                   03420000
+003420          WHEN OTHER                                              03420000
+003420               MOVE CCYY OF DA-DD-MM-CCYY TO CCYY OF              03420000
+003420               DA-CCYYMMDD-R                                      03420000
+003420               MOVE MM OF DA-DD-MM-CCYY TO MM OF DA-CCYYMMDD-R    03420000
+003420               MOVE DD OF DA-DD-MM-CCYY TO DD OF DA-CCYYMMDD-R    03420000
+003420        END-EVALUATE                                              03420000
+003420        MOVE DA-CCYYMMDD-R TO DA-UE-FORM-AS OF VMBFAS             03420000
+003420        MOVE DU-STFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        DU-ST-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE RA-PSFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        RA-PS-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE RA-PRFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        RA-PR-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE AM-CNSFMAS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        AM-CNS-FORM-AS OF VMBFAS                                  03420000
+003420        MOVE AM-PSFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        AM-PS-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE NB-FIFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        NB-FI-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE AM-FINFMAS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        AM-FIN-FORM-AS OF VMBFAS                                  03420000
+003420        MOVE CO-RIFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        CO-RI-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE NR-IDRFMAS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        NR-IDR-FORM-AS OF VMBFAS                                  03420000
+003420        MOVE DA-UERFMAS-479BFAS OF DCLDZBFASTV TO DA-DD-MM-CCYY   03420000
+003420        EVALUATE TRUE                                             03420000
+003420          WHEN DA-DD-MM-CCYY = '01.01.0001'                       03420000
+003420               MOVE ZEROES TO DA-CCYYMMDD-R                       03420000
+003420          WHEN DA-DD-MM-CCYY = '31.12.9999'                       03420000
+003420               MOVE '99999999' TO DA-CCYYMMDD-R                   03420000
+003420          WHEN OTHER                                              03420000
+003420               MOVE CCYY OF DA-DD-MM-CCYY TO CCYY OF              03420000
+003420               DA-CCYYMMDD-R                                      03420000
+003420               MOVE MM OF DA-DD-MM-CCYY TO MM OF DA-CCYYMMDD-R    03420000
+003420               MOVE DD OF DA-DD-MM-CCYY TO DD OF DA-CCYYMMDD-R    03420000
+003420        END-EVALUATE                                              03420000
+003420        MOVE DA-CCYYMMDD-R TO DA-UER-FORM-AS OF VMBFAS            03420000
+003420        MOVE AM-FBAFMAS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        AM-FBA-FORM-AS OF VMBFAS                                  03420000
+003420        MOVE AM-FBBFMAS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        AM-FBB-FORM-AS OF VMBFAS                                  03420000
+003420        MOVE CO-RMFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        CO-RM-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE RA-FBFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        RA-FB-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE NB-FBFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        NB-FB-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE AM-FBNFMAS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        AM-FBN-FORM-AS OF VMBFAS                                  03420000
+003420        MOVE RA-TIFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        RA-TI-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE AM-CNDFMAS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        AM-CND-FORM-AS OF VMBFAS                                  03420000
+003420        MOVE AM-CNDNFAS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        AM-CNDN-FORM-AS OF VMBFAS                                 03420000
+003420        MOVE AM-CNSNFAS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        AM-CNSN-FORM-AS OF VMBFAS                                 03420000
+003420        MOVE NR-CDFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        NR-CD-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE CT-SLFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        CT-SL-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE NR-STFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        NR-ST-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE CX-TWFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        CX-TW-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE NR-DSFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        NR-DS-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE NR-IDXFMAS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        NR-IDX-FORM-AS OF VMBFAS                                  03420000
+003420        MOVE CO-LAFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        CO-LA-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE AM-INTFMAS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        AM-INTER-FORM-AS OF VMBFAS                                03420000
+003420        MOVE NB-GRPFMAS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        NB-GROUP-FORM-AS OF VMBFAS                                03420000
+003420        MOVE NR-PRGRPFS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        NR-PRGRP-FORM-AS OF VMBFAS                                03420000
+003420        MOVE NR-NEGRPFS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        NR-NEGRP-FORM-AS OF VMBFAS                                03420000
+003420        MOVE NR-FIGRPFS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        NR-FIGRP-FORM-AS OF VMBFAS                                03420000
+003420        MOVE NR-SEGRPFS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        NR-SEGRP-FORM-AS OF VMBFAS                                03420000
+003420        MOVE NS-IDCPFS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        NS-IDCP-FORM-AS OF VMBFAS                                 03420000
+003420        MOVE AM-CNSSPFS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        AM-CNSSP-FORM-AS OF VMBFAS                                03420000
+003420        MOVE RA-CPTOTFS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        RA-CPTOT-FORM-AS OF VMBFAS                                03420000
+003420        MOVE CO-CPFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        CO-CP-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE CO-PERINFS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        CO-PERIN-FORM-AS OF VMBFAS                                03420000
+003420        MOVE NS-IDFMAS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        NS-ID-FORM-AS OF VMBFAS                                   03420000
+003420        MOVE CO-DEVFMAS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        CO-DEV-FORM-AS OF VMBFAS                                  03420000
+003420        MOVE NB-KRDEVFS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        NB-KRDEV-FORM-AS OF VMBFAS                                03420000
+003420        MOVE AM-BSDECFS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        AM-BSDEV-FORM-AS OF VMBFAS                                03420000
+003420        MOVE CO-TYPFMAS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        CO-TYP-FORM-AS OF VMBFAS                                  03420000
+003420        MOVE CO-SUBTPFS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        CO-SUBTP-FORM-AS OF VMBFAS                                03420000
+003420        MOVE CO-CONTFS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        CO-CONT-FORM-AS OF VMBFAS                                 03420000
+003420        MOVE CO-TPVGLFS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        CO-TPVGL-FORM-AS OF VMBFAS                                03420000
+003420        MOVE AM-VGLFMAS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        AM-VGL-FORM-AS OF VMBFAS                                  03420000
+003420        MOVE NR-PRDFMAS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        NR-PROD-FORM-AS OF VMBFAS                                 03420000
+003420        MOVE DA-ACTVRFS-479BFAS OF DCLDZBFASTV TO DA-DD-MM-CCYY   03420000
+003420        EVALUATE TRUE                                             03420000
+003420          WHEN DA-DD-MM-CCYY = '01.01.0001'                       03420000
+003420               MOVE ZEROES TO DA-CCYYMMDD-R                       03420000
+003420          WHEN DA-DD-MM-CCYY = '31.12.9999'                       03420000
+003420               MOVE '99999999' TO DA-CCYYMMDD-R                   03420000
+003420          WHEN OTHER                                              03420000
+003420               MOVE CCYY OF DA-DD-MM-CCYY TO CCYY OF              03420000
+003420               DA-CCYYMMDD-R                                      03420000
+003420               MOVE MM OF DA-DD-MM-CCYY TO MM OF DA-CCYYMMDD-R    03420000
+003420               MOVE DD OF DA-DD-MM-CCYY TO DD OF DA-CCYYMMDD-R    03420000
+003420        END-EVALUATE                                              03420000
+003420        MOVE DA-CCYYMMDD-R TO DA-ACTVR-FORM-AS OF VMBFAS          03420000
+003420        MOVE DA-INVTRFS-479BFAS OF DCLDZBFASTV TO DA-DD-MM-CCYY   03420000
+003420        EVALUATE TRUE                                             03420000
+003420          WHEN DA-DD-MM-CCYY = '01.01.0001'                       03420000
+003420               MOVE ZEROES TO DA-CCYYMMDD-R                       03420000
+003420          WHEN DA-DD-MM-CCYY = '31.12.9999'                       03420000
+003420               MOVE '99999999' TO DA-CCYYMMDD-R                   03420000
+003420          WHEN OTHER                                              03420000
+003420               MOVE CCYY OF DA-DD-MM-CCYY TO CCYY OF              03420000
+003420               DA-CCYYMMDD-R                                      03420000
+003420               MOVE MM OF DA-DD-MM-CCYY TO MM OF DA-CCYYMMDD-R    03420000
+003420               MOVE DD OF DA-DD-MM-CCYY TO DD OF DA-CCYYMMDD-R    03420000
+003420        END-EVALUATE                                              03420000
+003420        MOVE DA-CCYYMMDD-R TO DA-INVTR-FORM-AS OF VMBFAS          03420000
+003420        MOVE RA-QZTTIFS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        RA-QZTTI-FORM-AS OF VMBFAS                                03420000
+003420        MOVE RA-DGTTIFS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        RA-DGTTI-FORM-AS OF VMBFAS                                03420000
+003420        MOVE NB-DGTTIFS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        NB-DGTTI-FORM-AS OF VMBFAS                                03420000
+003420        MOVE AM-DGTTIFS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        AM-DGTTI-FORM-AS OF VMBFAS                                03420000
+003420        MOVE ST-DGTTIFS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        ST-DGTTI-FORM-AS OF VMBFAS                                03420000
+003420        MOVE ST-PRRWFS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        ST-PRRW-FORM-AS OF VMBFAS                                 03420000
+003420        MOVE RA-GIFTFS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        RA-GIFT-FORM-AS OF VMBFAS                                 03420000
+003420        MOVE AM-GIFTFS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        AM-GIFT-FORM-AS OF VMBFAS                                 03420000
+003420        MOVE ST-VOORHFS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        ST-VOORH-FORM-AS OF VMBFAS                                03420000
+003420        MOVE DA-CPTAFS-479BFAS OF DCLDZBFASTV TO DA-DD-MM-CCYY    03420000
+003420        EVALUATE TRUE                                             03420000
+003420          WHEN DA-DD-MM-CCYY = '01.01.0001'                       03420000
+003420               MOVE ZEROES TO DA-CCYYMMDD-R                       03420000
+003420          WHEN DA-DD-MM-CCYY = '31.12.9999'                       03420000
+003420               MOVE '99999999' TO DA-CCYYMMDD-R                   03420000
+003420          WHEN OTHER                                              03420000
+003420               MOVE CCYY OF DA-DD-MM-CCYY TO CCYY OF              03420000
+003420               DA-CCYYMMDD-R                                      03420000
+003420               MOVE MM OF DA-DD-MM-CCYY TO MM OF DA-CCYYMMDD-R    03420000
+003420               MOVE DD OF DA-DD-MM-CCYY TO DD OF DA-CCYYMMDD-R    03420000
+003420        END-EVALUATE                                              03420000
+003420        MOVE DA-CCYYMMDD-R TO DA-CPTA-FORM-AS OF VMBFAS           03420000
+003420        MOVE CO-EXTOBFS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        CO-EXTOB-FORM-AS OF VMBFAS                                03420000
+003420        MOVE CO-PLTOBFS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        CO-PLTOB-FORM-AS OF VMBFAS                                03420000
+003420        MOVE RA-TOBFS-479BFAS OF DCLDZBFASTV TO                   03420000
+003420        RA-TOB-FORM-AS OF VMBFAS                                  03420000
+003420        MOVE AM-TOBFS-479BFAS OF DCLDZBFASTV TO                   03420000
+003420        AM-TOB-FORM-AS OF VMBFAS                                  03420000
+003420        MOVE RA-TARPHFS-479BFAS OF DCLDZBFASTV TO                 03420000
+003420        RA-TARPH-FORM-AS OF VMBFAS                                03420000
+003420        MOVE AM-TARPH-479BFAS OF DCLDZBFASTV TO                   03420000
+003420        AM-TARPH-FORM-AS OF VMBFAS                                03420000
+003420        MOVE AM-BASEFS-479BFAS OF DCLDZBFASTV TO                  03420000
+003420        AM-BASE-FORM-AS OF VMBFAS                                 03420000
+003420        MOVE AM-FLKFS-479BFAS OF DCLDZBFASTV TO                   03420000
+003420        AM-FLK-FORM-AS OF VMBFAS                                  03420000
+003430        MOVE NR-ISFMAS-479BFAS OF DCLDZBFASTV                     03430000
+003440        TO W-NR-IS-FORM-AS                                        03440000
+003450        MOVE W-NR-ID-ISSUE TO F-NR-IS                             03450000
+003460        MOVE NR-STFMAS-479BFAS OF DCLDZBFASTV                     03460000
+003470        TO F-NR-ST                                                03470000
+003480        WRITE FORM-REC FROM REC-FORM                              03480000
+003490     END-IF.                                                      03490000
+003500*                                                                 03500000
+003510*DB2: Expanded LRF NEXT VMBTL03-R01 WHERE SWEEP-VMBFAS -> VMBFAS  03510000
+003520*  WITHIN AR-VMBFRM1.                                             03520000
+003530*DB2: Converted OBTAIN NEXT VMBFAS WITHIN AR-VMBFRM1.             03530000
+003540     PERFORM 720-FETCH-DZBFASC1.                                  03540000
+003550*                                                                 03550000
+003560 BEHANDELING-EXIT.                                                03560000
+003570*                                                                 03570000
+003580     EXIT.                                                        03580000
+003590*                                                                 03590000
+003600*                                                                 03600000
+003610 EINDE-PROGRAMMA.                                                 03610000
+003620*----------------                                                 03620000
+003630     MOVE 'COMMIT' TO SQL-LOCATION.                               03630000
+003640     EXEC SQL                                                     03640000
+003650       COMMIT                                                     03650000
+003660     END-EXEC.                                                    03660000
+003670     CLOSE FORM.                                                  03670000
+003680*                                                                 03680000
+003690 EINDE-PROGRAMMA-EXIT.                                            03690000
+003700*                                                                 03700000
+003710     EXIT.                                                        03710000
+003720/                                                                 03720000
+003730*DB2-KEEP: statement follows a paragraph EXIT and is unreachable. 03730000
+003730*DB2-KEEP CLOSE FORM.                                             03730000
+003740*                                                                 03740000
+003750                                                                  03750000
+003760*DB2 GENERATED CURSOR OPEN FETCH CLOSE PARAGRAPHS              *  03760000
+003770                                                                  03770000
+003780 710-OPEN-DZBFASC1.                                               03780000
+003790     MOVE 710    TO SQL-LOCATION                                  03790000
+003800                                                                  03800000
+003810     EXEC SQL                                                     03810000
+003820       OPEN DZBFASC1                                              03820000
+003830     END-EXEC                                                     03830000
+003840                                                                  03840000
+003850     EVALUATE SQLCODE                                             03850000
+003860       WHEN ZERO                                                  03860000
+003870            SET DZBFASC1-NOT-EOC TO TRUE                          03870000
+003880       WHEN OTHER                                                 03880000
+003890            MOVE 710    TO SQL-LOCATION                           03890000
+003900            DISPLAY 'ERROR WHILE OPENING CURSOR DZBFASC1'         03900000
+003910            PERFORM SQLERROR                                      03910000
+003920     END-EVALUATE                                                 03920000
+003930     .                                                            03930000
+003940                                                                  03940000
+003950 720-FETCH-DZBFASC1.                                              03950000
+003960     INITIALIZE DCLDZBFASTV.                                      03960000
+003970     SET DZBFASC1-NOT-EOC TO TRUE                                 03970000
+003980     MOVE 720    TO SQL-LOCATION                                  03980000
+003990                                                                  03990000
+004000     EXEC SQL                                                     04000000
+004010       FETCH DZBFASC1                                             04010000
+004020       INTO :DCLDZBFASTV.CT-RKTGDSV-479BFAS                       04020000
+004030       , :DCLDZBFASTV.NR-CIOFMAS-479BFAS                          04030000
+004040       , :DCLDZBFASTV.DA-CRFMAS-479BFAS                           04040000
+004050       , :DCLDZBFASTV.NR-IDFMAS-479BFAS                           04050000
+004060       , :DCLDZBFASTV.CT-OPD-479BFAS                              04060000
+004070       , :DCLDZBFASTV.CT-OPG-479BFAS                              04070000
+004080       , :DCLDZBFASTV.NR-CIWFMAS-479BFAS                          04080000
+004090       , :DCLDZBFASTV.DA-VAFMAS-479BFAS                           04090000
+004100       , :DCLDZBFASTV.CO-VMFMAS-479BFAS                           04100000
+004110       , :DCLDZBFASTV.NR-ISFMAS-479BFAS                           04110000
+004120       , :DCLDZBFASTV.RA-RTFMAS-479BFAS                           04120000
+004130       , :DCLDZBFASTV.RA-CPFMAS-479BFAS                           04130000
+004140       , :DCLDZBFASTV.RA-BASFMAS-479BFAS                          04140000
+004150       , :DCLDZBFASTV.DA-UBFMAS-479BFAS                           04150000
+004160       , :DCLDZBFASTV.DA-UEFMAS-479BFAS                           04160000
+004170       , :DCLDZBFASTV.DU-STFMAS-479BFAS                           04170000
+004180       , :DCLDZBFASTV.RA-PSFMAS-479BFAS                           04180000
+004190       , :DCLDZBFASTV.RA-PRFMAS-479BFAS                           04190000
+004200       , :DCLDZBFASTV.AM-CNSFMAS-479BFAS                          04200000
+004210       , :DCLDZBFASTV.AM-PSFMAS-479BFAS                           04210000
+004220       , :DCLDZBFASTV.NB-FIFMAS-479BFAS                           04220000
+004230       , :DCLDZBFASTV.AM-FINFMAS-479BFAS                          04230000
+004240       , :DCLDZBFASTV.CO-RIFMAS-479BFAS                           04240000
+004250       , :DCLDZBFASTV.NR-IDRFMAS-479BFAS                          04250000
+004260       , :DCLDZBFASTV.DA-UERFMAS-479BFAS                          04260000
+004270       , :DCLDZBFASTV.AM-FBAFMAS-479BFAS                          04270000
+004280       , :DCLDZBFASTV.AM-FBBFMAS-479BFAS                          04280000
+004290       , :DCLDZBFASTV.CO-RMFMAS-479BFAS                           04290000
+004300       , :DCLDZBFASTV.RA-FBFMAS-479BFAS                           04300000
+004310       , :DCLDZBFASTV.NB-FBFMAS-479BFAS                           04310000
+004320       , :DCLDZBFASTV.AM-FBNFMAS-479BFAS                          04320000
+004330       , :DCLDZBFASTV.RA-TIFMAS-479BFAS                           04330000
+004340       , :DCLDZBFASTV.AM-CNDFMAS-479BFAS                          04340000
+004350       , :DCLDZBFASTV.AM-CNDNFAS-479BFAS                          04350000
+004360       , :DCLDZBFASTV.AM-CNSNFAS-479BFAS                          04360000
+004370       , :DCLDZBFASTV.NR-CDFMAS-479BFAS                           04370000
+004380       , :DCLDZBFASTV.CT-SLFMAS-479BFAS                           04380000
+004390       , :DCLDZBFASTV.NR-STFMAS-479BFAS                           04390000
+004400       , :DCLDZBFASTV.CX-TWFMAS-479BFAS                           04400000
+004410       , :DCLDZBFASTV.NR-DSFMAS-479BFAS                           04410000
+004420       , :DCLDZBFASTV.NR-IDXFMAS-479BFAS                          04420000
+004430       , :DCLDZBFASTV.CO-LAFMAS-479BFAS                           04430000
+004440       , :DCLDZBFASTV.AM-INTFMAS-479BFAS                          04440000
+004450       , :DCLDZBFASTV.NB-GRPFMAS-479BFAS                          04450000
+004460       , :DCLDZBFASTV.NR-PRGRPFS-479BFAS                          04460000
+004470       , :DCLDZBFASTV.NR-NEGRPFS-479BFAS                          04470000
+004480       , :DCLDZBFASTV.NR-FIGRPFS-479BFAS                          04480000
+004490       , :DCLDZBFASTV.NR-SEGRPFS-479BFAS                          04490000
+004500       , :DCLDZBFASTV.NS-IDCPFS-479BFAS                           04500000
+004510       , :DCLDZBFASTV.AM-CNSSPFS-479BFAS                          04510000
+004520       , :DCLDZBFASTV.RA-CPTOTFS-479BFAS                          04520000
+004530       , :DCLDZBFASTV.CO-CPFMAS-479BFAS                           04530000
+004540       , :DCLDZBFASTV.CO-PERINFS-479BFAS                          04540000
+004550       , :DCLDZBFASTV.NS-IDFMAS-479BFAS                           04550000
+004560       , :DCLDZBFASTV.CO-DEVFMAS-479BFAS                          04560000
+004570       , :DCLDZBFASTV.NB-KRDEVFS-479BFAS                          04570000
+004580       , :DCLDZBFASTV.AM-BSDECFS-479BFAS                          04580000
+004590       , :DCLDZBFASTV.CO-TYPFMAS-479BFAS                          04590000
+004600       , :DCLDZBFASTV.CO-SUBTPFS-479BFAS                          04600000
+004610       , :DCLDZBFASTV.CO-CONTFS-479BFAS                           04610000
+004620       , :DCLDZBFASTV.CO-TPVGLFS-479BFAS                          04620000
+004630       , :DCLDZBFASTV.AM-VGLFMAS-479BFAS                          04630000
+004640       , :DCLDZBFASTV.NR-PRDFMAS-479BFAS                          04640000
+004650       , :DCLDZBFASTV.DA-ACTVRFS-479BFAS                          04650000
+004660       , :DCLDZBFASTV.DA-INVTRFS-479BFAS                          04660000
+004670       , :DCLDZBFASTV.RA-QZTTIFS-479BFAS                          04670000
+004680       , :DCLDZBFASTV.RA-DGTTIFS-479BFAS                          04680000
+004690       , :DCLDZBFASTV.NB-DGTTIFS-479BFAS                          04690000
+004700       , :DCLDZBFASTV.AM-DGTTIFS-479BFAS                          04700000
+004710       , :DCLDZBFASTV.ST-DGTTIFS-479BFAS                          04710000
+004720       , :DCLDZBFASTV.ST-PRRWFS-479BFAS                           04720000
+004730       , :DCLDZBFASTV.RA-GIFTFS-479BFAS                           04730000
+004740       , :DCLDZBFASTV.AM-GIFTFS-479BFAS                           04740000
+004750       , :DCLDZBFASTV.ST-VOORHFS-479BFAS                          04750000
+004760       , :DCLDZBFASTV.DA-CPTAFS-479BFAS                           04760000
+004770       , :DCLDZBFASTV.CO-EXTOBFS-479BFAS                          04770000
+004780       , :DCLDZBFASTV.CO-PLTOBFS-479BFAS                          04780000
+004790       , :DCLDZBFASTV.RA-TOBFS-479BFAS                            04790000
+004800       , :DCLDZBFASTV.AM-TOBFS-479BFAS                            04800000
+004810       , :DCLDZBFASTV.RA-TARPHFS-479BFAS                          04810000
+004820       , :DCLDZBFASTV.AM-TARPH-479BFAS                            04820000
+004830       , :DCLDZBFASTV.AM-BASEFS-479BFAS                           04830000
+004840       , :DCLDZBFASTV.AM-FLKFS-479BFAS                            04840000
+004850       , :DCLDZBFASTV.NR-CIOFMAS-479SIAS                          04850000
+004860       , :DCLDZBFASTV.NR-IDFMAS-479SIAS                           04860000
+004870       , :DCLDZBFASTV.NR-ID-479BFAS                               04870000
+004880     END-EXEC                                                     04880000
+004890                                                                  04890000
+004900     EVALUATE SQLCODE                                             04900000
+004910       WHEN ZERO                                                  04910000
+004920            CONTINUE                                              04920000
+004930       WHEN 100                                                   04930000
+004940            SET DZBFASC1-EOC TO TRUE                              04940000
+004950       WHEN OTHER                                                 04950000
+004960            MOVE 720    TO SQL-LOCATION                           04960000
+004970            DISPLAY 'ERROR WHILE FETCHING CURSOR DZBFASC1'        04970000
+004980            DISPLAY 'CT-RKTGDSV-479BFAS : ' CT-RKTGDSV-479BFAS    04980000
+004990            OF DCLDZBFASTV                                        04990000
+005000            DISPLAY 'NR-CIOFMAS-479BFAS : ' NR-CIOFMAS-479BFAS    05000000
+005010            OF DCLDZBFASTV                                        05010000
+005020            DISPLAY 'DA-CRFMAS-479BFAS  : ' DA-CRFMAS-479BFAS     05020000
+005030            OF DCLDZBFASTV                                        05030000
+005040            DISPLAY 'NR-IDFMAS-479BFAS  : ' NR-IDFMAS-479BFAS     05040000
+005050            OF DCLDZBFASTV                                        05050000
+005060            DISPLAY 'CT-OPD-479BFAS     : ' CT-OPD-479BFAS        05060000
+005070            OF DCLDZBFASTV                                        05070000
+005080            PERFORM SQLERROR                                      05080000
+005090     END-EVALUATE                                                 05090000
+005100     .                                                            05100000
+005110                                                                  05110000
+005120 730-CLOSE-DZBFASC1.                                              05120000
+005130     MOVE 730    TO SQL-LOCATION                                  05130000
+005140                                                                  05140000
+005150     EXEC SQL                                                     05150000
+005160       CLOSE DZBFASC1                                             05160000
+005170     END-EXEC                                                     05170000
+005180                                                                  05180000
+005190     EVALUATE SQLCODE                                             05190000
+005200       WHEN ZERO                                                  05200000
+005210            CONTINUE                                              05210000
+005220       WHEN OTHER                                                 05220000
+005230            MOVE 730    TO SQL-LOCATION                           05230000
+005240            DISPLAY 'ERROR WHILE CLOSING CURSOR DZBFASC1'         05240000
+005250            PERFORM SQLERROR                                      05250000
+005260     END-EVALUATE                                                 05260000
+005270     .                                                            05270000
+005280                                                                  05280000
+005290*SQLERROR ROUTINE.                                                05290000
+005300     EXEC SQL                                                     05300000
+005310       INCLUDE SQLERROR                                           05310000
+005320     END-EXEC.                                                    05320000

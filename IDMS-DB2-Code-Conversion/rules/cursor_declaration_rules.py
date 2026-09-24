@@ -101,3 +101,11 @@ DECLARATION_MESSAGES = {
         "cursor {cursor} was not declared."
     ),
 }
+
+# LOCATION: rules/counter_declaration_rules.py
+# ACTION: APPEND at the end of the file
+
+# A batch program terminates with STOP RUN, or with GOBACK when it is
+# CALLed with a parameter list. Both are valid totals anchors.
+# VM7BD200 ends with GOBACK, which is why totals were silently skipped.
+TOTALS_ANCHOR_STATEMENTS = ("STOP RUN", "GOBACK")

@@ -67,3 +67,8 @@ MISSING_TABLE_TEMPLATE = (
     "* DB2 WARNING: Unable to declare cursor {cursor}; "
     "missing DB2 table mapping."
 )
+
+EMIT_QUERYNO = True
+QUERYNO_BASE = 254
+QUERYNO_STEP = 1
+QUERYNO_TEMPLATE = "QUERYNO {queryno}"

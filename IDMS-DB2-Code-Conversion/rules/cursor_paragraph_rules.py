@@ -178,3 +178,40 @@ DIAG_NO_HOST_VARIABLES_TEMPLATE = (
     "DB2 cursor paragraphs: no FETCH host variables resolved for "
     "cursor {cursor} record {record} table {table}."
 )
+
+ENFORCE_FETCH_PROLOGUE = True
+
+INITIALIZE_HOST_GROUP_TEMPLATE = "INITIALIZE {group}."
+
+# Separator between a host group and its field in a FETCH INTO item,
+# e.g. :DCLDZBFASTV.DA-CPTAFS-479BFAS
+HOST_GROUP_SEPARATOR = "."
+HOST_REFERENCE_PREFIX = ":"
+ENFORCE_SQL_LOCATION_IN_ERROR_BRANCH = True
+EMIT_FETCH_KEY_DIAGNOSTICS = True
+
+# How many leading INTO hosts to display. The manual shows five. An
+# unbounded list would bury the failure in the job log.
+FETCH_KEY_DIAGNOSTIC_LIMIT = 5
+
+# Rendered as: DISPLAY '<label> : ' <field> OF <group>
+FETCH_KEY_DISPLAY_TEMPLATE = "DISPLAY '{label} : ' {host}"
+FETCH_KEY_LABEL_WIDTH = 18
+FETCH_KEY_HOST_TEMPLATE = "{field} OF {group}"
+
+# Body window is columns 8-72. A DISPLAY that does not fit is split at
+# the OF keyword and the continuation is aligned under the operand,
+# matching the manual. Truncation is never acceptable: a cut data-name
+# does not compile.
+FETCH_KEY_BODY_END_COLUMN = 72
+
+FETCH_KEY_MESSAGES = {
+    "emitted": (
+        "Cursor paragraphs: {cursor} FETCH error branch displays "
+        "{count} fetched column(s) before PERFORM {paragraph}."
+    ),
+    "no_hosts": (
+        "Cursor paragraphs: {cursor} FETCH error branch has no "
+        "qualified host to display; generic error text only."
+    ),
+}

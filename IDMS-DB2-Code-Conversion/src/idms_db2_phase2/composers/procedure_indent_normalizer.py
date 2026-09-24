@@ -58,6 +58,15 @@ that no longer fits is WRAPPED onto a continuation line; if even that is
 impossible the original line is kept unchanged. A cosmetic pass must
 never destroy a statement.
 
+TEMPORARY INSTRUMENTATION
+-------------------------
+A four-line IF condition reached the generated file merged into two
+truncated lines. This pass processes ONE line at a time and has no join
+path, so the merge must happen upstream. DUMP_INTERMEDIATE writes the
+text this pass receives and the text it returns, which settles the
+question in one run. Set it to False, or delete the three marked blocks,
+once the culprit is fixed.
+
 Clean Architecture
 ------------------
 - Constants live in rules/procedure_indent_rules.py.
@@ -69,6 +78,7 @@ Clean Architecture
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path  # TEMP DEBUG
 
 from idms_db2_phase2.services.fixed_format_line_service import (
     FixedFormatLineService,
@@ -109,6 +119,12 @@ from rules.procedure_indent_rules import (
     WHEN_OFFSET,
 )
 
+# TEMP DEBUG - set False or delete the marked blocks once the upstream
+# merge is fixed.
+DUMP_INTERMEDIATE = True
+DUMP_IN = "debug_indent_in.txt"
+DUMP_OUT = "debug_indent_out.txt"
+
 
 @dataclass
 class _Frame:
@@ -145,6 +161,8 @@ class ProcedureIndentNormalizer:
     # =================================================================
     def compose(self, text: str) -> str:
         self.messages = []
+
+        self._dump(DUMP_IN, text)  # TEMP DEBUG
 
         if not text or not ENFORCE_PROCEDURE_INDENT:
             return str(text or "")
@@ -235,7 +253,25 @@ class ProcedureIndentNormalizer:
                 PROCEDURE_INDENT_MESSAGES["wrapped"].format(count=wrapped)
             )
 
-        return "\n".join(output).rstrip() + "\n"
+        result = "\n".join(output).rstrip() + "\n"
+
+        self._dump(DUMP_OUT, result)  # TEMP DEBUG
+
+        return result
+
+    # =================================================================
+    # Temporary instrumentation
+    # =================================================================
+    @staticmethod
+    def _dump(name: str, text: str) -> None:  # TEMP DEBUG
+        """Write one pipeline snapshot. Never raises, never blocks."""
+        if not DUMP_INTERMEDIATE:
+            return
+
+        try:
+            Path(name).write_text(str(text or ""), encoding="utf-8")
+        except Exception:  # noqa: BLE001
+            pass
 
     # =================================================================
     # Indent resolution
@@ -403,3 +439,6 @@ class ProcedureIndentNormalizer:
 
         rendered = self.fixed_format.replace_body_wrapped(line, new_body)
         return rendered if rendered else [line]
+
+
+__all__ = ["ProcedureIndentNormalizer"]

@@ -110,3 +110,4 @@ OUTPUT_WRITE_PARAGRAPH_MESSAGES = {
         "Output write: block in {source} is too small to extract."
     ),
 }
+ENFORCE_OUTPUT_WRITE_PARAGRAPH = True

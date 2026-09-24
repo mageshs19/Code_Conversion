@@ -6,6 +6,7 @@ from rules.fixed_format_rules import (
     COMMENT_INDICATOR,
     DEBUG_INDICATOR,
     DEBUG_INDICATOR_LOWER,
+    FIXED_FORMAT_MESSAGES,
     PAGE_INDICATOR,
     PROCEDURE_DIVISION_NAME,
     SPACE_INDICATOR,
@@ -134,6 +135,25 @@ class FixedFormatLineComposer:
         area_body: str,
         right_seq: str,
     ) -> str:
+        """Assemble one 80-column record.
+
+        CORRECTION - silent truncation
+        ------------------------------
+        This method used to do
+
+            if len(safe_body) > BODY_WIDTH:
+                safe_body = safe_body[:BODY_WIDTH]
+
+        with no report. Every caller reaches here through
+        FixedFormatWrapper.wrap_body(), which is responsible for
+        splitting an over-long body, so a body arriving over-width means
+        wrapping already failed. Cutting it hid that failure and
+        produced an undefined data name.
+
+        The cut is retained as the last line of defence - emitting a
+        record longer than 80 columns would be worse - but it is now
+        REPORTED, so it can never again be invisible.
+        """
         safe_left = str(left_seq or "").zfill(6)[-6:]
         safe_right = str(right_seq or "").zfill(8)[-8:]
         safe_indicator = str(indicator or SPACE_INDICATOR)[:1]
@@ -144,7 +164,19 @@ class FixedFormatLineComposer:
             safe_indicator = DEBUG_INDICATOR
 
         safe_body = str(area_body or "").rstrip()
+
         if len(safe_body) > BODY_WIDTH:
+            messages = getattr(self, "messages", None)
+            if messages is not None:
+                template = FIXED_FORMAT_MESSAGES.get("body_truncated", "")
+                if template:
+                    messages.append(
+                        template.format(
+                            width=len(safe_body),
+                            limit=BODY_WIDTH,
+                            body=safe_body.strip()[:40],
+                        )
+                    )
             safe_body = safe_body[:BODY_WIDTH]
 
         body_area = safe_body.ljust(BODY_WIDTH)

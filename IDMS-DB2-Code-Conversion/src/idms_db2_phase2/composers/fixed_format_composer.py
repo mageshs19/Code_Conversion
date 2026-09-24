@@ -31,7 +31,13 @@ from idms_db2_phase2.composers.fixed_format_sequence_manager import (
     FixedFormatSequenceManager,
 )
 from idms_db2_phase2.composers.fixed_format_wrapper import FixedFormatWrapper
-from rules.fixed_format_rules import TOTAL_WIDTH, VALID_INDICATORS
+
+from rules.fixed_format_rules import (
+    BODY_WIDTH,
+    FIXED_FORMAT_MESSAGES,
+    TOTAL_WIDTH,
+    VALID_INDICATORS,
+)
 
 
 class FixedFormatComposer(FixedFormatLineComposer):
@@ -52,6 +58,8 @@ class FixedFormatComposer(FixedFormatLineComposer):
         self.body_formatter = FixedFormatBodyFormatter()
         self.wrapper = FixedFormatWrapper()
         self.sequence_manager = FixedFormatSequenceManager()
+        # conversion_service reads composer.messages after the pass runs.
+        self.messages: list[str] = []
 
     def format(
         self,
@@ -64,6 +72,8 @@ class FixedFormatComposer(FixedFormatLineComposer):
     ) -> str:
         if not text:
             return ""
+
+        self.messages = []
 
         lines = self._normalize_line_endings(text).splitlines()
         lines = self._merge_dangling_boolean_lines(lines)
@@ -142,6 +152,28 @@ class FixedFormatComposer(FixedFormatLineComposer):
         return str(text or "").replace("\r\n", "\n").replace("\r", "\n")
 
     def _merge_dangling_boolean_lines(self, lines: list[str]) -> list[str]:
+        """Join a line ending in AND / OR / NOT to its continuation.
+
+        CORRECTION - the merge had no width check
+        ----------------------------------------
+        A four-line IF condition reached the generated file as two lines
+        cut mid-identifier:
+
+            IF (HELP-DA-CPTAFS-479BFAS < DA-ARCH-YMD  AND HELP-DA-CPTAFS-
+               (HELP-DA-CRFMAS-479BFAS < DA-ARCH-YMD AND HELP-DA-CPTAFS-4
+
+        losing "NOT = '00000000') OR" and "= '00000000')" entirely.
+
+        The merge fired whenever the first line ended on a boolean
+        operator, regardless of the combined width. 49 + 43 columns were
+        joined into a 65-column window and
+        replace_body_preserving_sequence sliced the remainder away.
+
+        A merge is now performed ONLY when the result fits columns 8-72.
+        When it does not, BOTH lines are left exactly as they were - the
+        author's break is already a valid continuation - and the refusal
+        is reported. Cosmetic joining must never cost a character.
+        """
         output: list[str] = []
         index = 0
 
@@ -172,16 +204,31 @@ class FixedFormatComposer(FixedFormatLineComposer):
 
             if self.wrapper.ends_with_boolean_operator(current_body):
                 merged_body = f"{current_body.rstrip()} {next_body.strip()}"
-                output.append(
-                    self.line_parser.replace_body_preserving_sequence(
-                        original_line=current,
-                        new_body=merged_body,
+
+                if len(merged_body) <= BODY_WIDTH:
+                    output.append(
+                        self.line_parser.replace_body_preserving_sequence(
+                            original_line=current,
+                            new_body=merged_body,
+                        )
                     )
+                    index += 2
+                    continue
+
+                # Does not fit. Keep the author's break rather than cut.
+                self._log(
+                    "merge_refused",
+                    width=len(merged_body),
+                    limit=BODY_WIDTH,
+                    body=current_body.strip()[:40],
                 )
-                index += 2
-                continue
 
             output.append(current)
             index += 1
 
         return output
+
+    def _log(self, key: str, **values) -> None:
+        template = FIXED_FORMAT_MESSAGES.get(key, "")
+        if template:
+            self.messages.append(template.format(**values))

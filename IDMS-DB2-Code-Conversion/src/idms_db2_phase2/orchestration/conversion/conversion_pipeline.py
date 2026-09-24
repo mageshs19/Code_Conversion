@@ -4,24 +4,9 @@
 from __future__ import annotations
 
 from idms_db2_phase2.analyzers.program_flow_analyzer import ProgramFlowAnalyzer
-from idms_db2_phase2.composers.counter_declaration_composer import (
-    CounterDeclarationComposer,
-)
-from idms_db2_phase2.composers.late_db2_date_composer import (
-    LateDb2DateComposer,
-)
-from idms_db2_phase2.composers.output_write_paragraph_composer import (
-    OutputWriteParagraphComposer,
-)
-from idms_db2_phase2.composers.procedure_indent_normalizer import (
-    ProcedureIndentNormalizer,
-)
-from idms_db2_phase2.composers.unmapped_record_block_composer import (
-    UnmappedRecordBlockComposer,
-)
 from idms_db2_phase2.domain.models import ConversionInput
-from idms_db2_phase2.services.final_sequence_resequencer_service import (
-    FinalSequenceResequencerService,
+from idms_db2_phase2.orchestration.conversion.conversion_layout_pipeline import (
+    ConversionLayoutPipeline,
 )
 from idms_db2_phase2.validators.mapping_scope_filter import (
     MappingScopeFilter,
@@ -30,65 +15,51 @@ from idms_db2_phase2.validators.mapping_validator import MappingValidator
 
 
 class ConversionPipeline:
-    """Runs the linear IDMS->DB2 conversion pipeline.
+    """Runs the CONTENT phase of the IDMS->DB2 conversion.
 
     Depends on the host class for the component factory methods and message
     helpers (via mixins). Returns (converted_cobol, operations,
     dclgen_repository); validation messages are appended to the passed-in
     list.
 
-    Pass-ordering contracts
-    -----------------------
-    0. ``MappingScopeFilter`` rescopes the mapping validation report to the
-       program being converted. MappingValidator audits the WHOLE Sheet
-       Mapping workbook, so a restart-table gap was reported as a blocking
-       error against every retrieval program that never touches it. A gap
-       stays an error for a table this program references, and becomes a
-       workbook note for any other.
+    The FINISHING phase - layout, paragraph extraction, counters, indent and
+    resequencing - lives in ConversionLayoutPipeline. That split keeps the
+    two concerns testable in isolation: this class decides WHAT the program
+    says, that class decides HOW it is laid out.
 
-    1. ``feedback_cleanup`` (CobolCleanupComposer) runs
-       ``OutputWritePlacementCleanup``, which lifts a guarded output WRITE
-       out of the child-row paragraph into the PARENT paragraph, after the
-       child cursor CLOSE. Left in the child-row paragraph the WRITE fires
-       once per fetched child row instead of once per parent row.
+    Pass-ordering contracts (content phase)
+    ---------------------------------------
+    0a. ``LrfPathExpander`` rewrites Logical Record Facility syntax into the
+        classic IDMS syntax the rest of the converter already understands::
 
-    2. ``fixed_format`` sequences every line, including generator-inserted
-       blocks.
+            OBTAIN FIRST <LR> WHERE <keyword>  ->  OBTAIN FIRST <rec> WITHIN <set>
+            LR-STATUS = 'X-EOA'                ->  DB-END-OF-SET
+            FIELD OF <rec> OF LR               ->  FIELD OF <rec>
 
-    3. ``OutputWriteParagraphComposer`` extracts the record-population body
-       into its own ``WRITE-<record>`` paragraph and replaces it with a
-       PERFORM plus the output counter increment. It MUST run after both of
-       the above:
+        It MUST run first, because MappingScopeFilter, CobolTransformer and
+        ProgramFlowAnalyzer all read the source text. Every pass after this
+        point sees classic IDMS and needs no logical-record knowledge.
 
-         - before (1) it would extract from the wrong paragraph and bake in
-           the once-per-child-row defect;
-         - before (2) it would have no sequence area to clone when building
-           the new paragraph header.
+    0b. ``MappingScopeFilter`` rescopes the mapping validation report to the
+        program being converted. MappingValidator audits the WHOLE Sheet
+        Mapping workbook, so a restart-table gap was reported as a blocking
+        error against every retrieval program that never touches it. A gap
+        stays an error for a table this program references, and becomes a
+        workbook note for any other.
 
-    4. ``LateDb2DateComposer`` re-runs the DB2 date and INITIALIZE passes.
-       Those live inside ``feedback_cleanup`` and have already finished by
-       the time step 3 moves the block into a brand new paragraph, so
-       without this second run a DB2 date host field is moved straight into
-       the output record, skipping the CCYYMMDD realignment. That is silent
-       data corruption, not a formatting defect.
+    1.  ``feedback_cleanup`` (CobolCleanupComposer) runs
+        ``OutputWritePlacementCleanup``, which lifts a guarded output WRITE
+        out of the child-row paragraph into the PARENT paragraph, after the
+        child cursor CLOSE. Left in the child-row paragraph the WRITE fires
+        once per fetched child row instead of once per parent row.
 
-    5. ``CounterDeclarationComposer`` declares every ``WS-NB-*-COUNT`` the
-       PROCEDURE DIVISION increments but WORKING-STORAGE does not define,
-       and appends the end-of-run totals before STOP RUN. It MUST run after
-       step 3, which is what emits the increment, and BEFORE step 7 so the
-       generated DISPLAY lines are indented with everything else.
-
-    6. ``UnmappedRecordBlockComposer`` comments record-level blocks that
-       have no usable DB2 column mapping. Runs after the content passes so
-       it never comments code another pass still needs to read.
-
-    7. ``ProcedureIndentNormalizer`` re-anchors Area B, covering the
-       paragraph created in step 3 and the totals added in step 5.
-
-    8. ``FinalSequenceResequencerService`` rewrites columns 1-6 and 73-80,
-       correcting the placeholder sequence numbers cloned in steps 3 and 5.
+    Steps 2 through 8 are owned by ConversionLayoutPipeline and documented
+    there.
     """
 
+    # ------------------------------------------------------------------
+    # Entry point
+    # ------------------------------------------------------------------
     def _run_pipeline(
         self,
         *,
@@ -109,6 +80,19 @@ class ConversionPipeline:
         composers = self._composers(
             repositories=repositories,
             resolvers=resolvers,
+        )
+
+        # ------------------------------------------------------------------
+        # LRF -> classic IDMS expansion
+        #
+        # Must precede mapping scope, statement transformation and flow
+        # analysis: all three read the program source. A program without
+        # LRF metadata, or without LRF syntax, gets its text back unchanged.
+        # ------------------------------------------------------------------
+        source_text = self._expand_logical_records(
+            conversion_input=conversion_input,
+            transformers=transformers,
+            validation_messages=validation_messages,
         )
 
         # ------------------------------------------------------------------
@@ -135,7 +119,7 @@ class ConversionPipeline:
         validation_messages.extend(
             mapping_scope_filter.apply(
                 messages=mapping_validator.validate(),
-                source_text=conversion_input.idms_cobol_text,
+                source_text=source_text,
             )
         )
         validation_messages.extend(
@@ -148,7 +132,7 @@ class ConversionPipeline:
         converted_cobol, transform_messages, operations = transformers[
             "cobol"
         ].transform(
-            cobol_text=conversion_input.idms_cobol_text,
+            cobol_text=source_text,
             target_program_id=conversion_input.target_program_id,
         )
         validation_messages.extend(transform_messages)
@@ -167,7 +151,7 @@ class ConversionPipeline:
             mapping_rows=conversion_input.sheet_mapping_rows,
             dclgen_columns=conversion_input.dclgen_columns,
         ).analyze(
-            cobol_text=conversion_input.idms_cobol_text,
+            cobol_text=source_text,
             operations=operations,
         )
         validation_messages.extend(flow_analysis.diagnostics)
@@ -185,26 +169,13 @@ class ConversionPipeline:
         # ------------------------------------------------------------------
         # DB2 infrastructure, cursors
         # ------------------------------------------------------------------
-        converted_cobol, infrastructure_messages = generators[
-            "db2_infrastructure"
-        ].apply(cobol_text=converted_cobol, operations=operations)
-        validation_messages.extend(infrastructure_messages)
-
-        converted_cobol = composers["cursor_order_cleanup"].compose(
-            converted_cobol
+        converted_cobol = self._apply_db2_infrastructure(
+            converted_cobol=converted_cobol,
+            operations=operations,
+            generators=generators,
+            composers=composers,
+            validation_messages=validation_messages,
         )
-
-        converted_cobol, cursor_messages = generators[
-            "cursor_paragraph"
-        ].apply(cobol_text=converted_cobol, operations=operations)
-        validation_messages.extend(cursor_messages)
-
-        converted_cobol = composers["cursor_flow"].compose(converted_cobol)
-        converted_cobol = composers["sqlcode_cleanup"].compose(converted_cobol)
-        converted_cobol = composers["cursor_order_cleanup"].compose(
-            converted_cobol
-        )
-        converted_cobol = composers["date_compare"].compose(converted_cobol)
 
         # ------------------------------------------------------------------
         # Timestamp / audit, SQLERROR routine
@@ -221,13 +192,190 @@ class ConversionPipeline:
 
         # ------------------------------------------------------------------
         # Safe cleanup passes
-        #
-        # feedback_cleanup == CobolCleanupComposer. It runs
-        # OutputWritePlacementCleanup, which moves the guarded output WRITE
-        # out of the child-row paragraph into the parent paragraph. The
-        # paragraph EXTRACTION below depends on that relocation having
-        # already happened.
         # ------------------------------------------------------------------
+        converted_cobol = self._apply_cleanup_composers(
+            converted_cobol=converted_cobol,
+            composers=composers,
+            validation_messages=validation_messages,
+        )
+
+        # ------------------------------------------------------------------
+        # FINISHING phase
+        #
+        # original_idms_text is the EXPANDED source, not the raw upload.
+        # The converted text derives from it line by line, so style
+        # preservation and unmapped-record discovery must compare against
+        # the same baseline.
+        # ------------------------------------------------------------------
+        converted_cobol = ConversionLayoutPipeline(
+            composers=composers,
+            resolvers=resolvers,
+            component_messages=self._component_messages,
+        ).finish(
+            converted_cobol=converted_cobol,
+            original_idms_text=source_text,
+            validation_messages=validation_messages,
+        )
+
+        return converted_cobol, operations, repositories["dclgen"]
+
+    # ------------------------------------------------------------------
+    # LRF expansion
+    # ------------------------------------------------------------------
+    def _expand_logical_records(
+        self,
+        *,
+        conversion_input: ConversionInput,
+        transformers: dict,
+        validation_messages: list[str],
+    ) -> str:
+        """Rewrite LRF syntax into classic IDMS syntax.
+
+        Returns the source text every later pass must use. Never raises:
+        an expansion failure falls back to the original source and is
+        reported as a validation message, because an unconverted LRF verb
+        is caught downstream by the residual-IDMS checks anyway.
+        """
+        source_text = str(conversion_input.idms_cobol_text or "")
+
+        expander = transformers.get("lrf_path_expander")
+        if expander is None:
+            return source_text
+
+        try:
+            expanded = expander.expand(source_text)
+        except Exception as exc:  # noqa: BLE001
+            validation_messages.append(
+                "LRF expansion: skipped, original IDMS source will be used. "
+                f"Reason: {exc}"
+            )
+            return source_text
+
+        validation_messages.extend(self._component_messages(expander))
+
+        return expanded or source_text
+
+    # ------------------------------------------------------------------
+    # DB2 infrastructure and cursor passes
+    # ------------------------------------------------------------------
+    #
+    # DB2 infrastructure and cursor passes
+    #
+    #
+    # DB2 infrastructure and cursor passes
+    #
+    def _apply_db2_infrastructure(
+        self,
+        *,
+        converted_cobol: str,
+        operations: list,
+        generators: dict,
+        composers: dict,
+        validation_messages: list[str],
+    ) -> str:
+        
+        converted_cobol, infrastructure_messages = generators[
+            "db2_infrastructure"
+        ].apply(cobol_text=converted_cobol, operations=operations)
+        validation_messages.extend(infrastructure_messages)
+
+        converted_cobol = composers["cursor_order_cleanup"].compose(
+            converted_cobol
+        )
+        validation_messages.extend(
+            self._component_messages(composers["cursor_order_cleanup"])
+        )
+
+        converted_cobol, cursor_messages = generators[
+            "cursor_paragraph"
+        ].apply(cobol_text=converted_cobol, operations=operations)
+        validation_messages.extend(cursor_messages)
+
+        #
+        # Cursor driving flow.
+        #
+        converted_cobol = composers["cursor_flow"].compose(converted_cobol)
+        validation_messages.extend(
+            self._component_messages(composers["cursor_flow"])
+        )
+
+        #
+        # Cursor close guarantee.
+        #
+        # Guarantees the three properties a generated cursor must hold,
+        # whatever loop idiom the source used:
+        #
+        #   - the FETCH paragraph is driven UNTIL <cursor>-EOC,
+        #   - the CLOSE paragraph is performed,
+        #   - the fetched row reaches the business paragraph.
+        #
+        close_guarantee = composers.get("cursor_close_guarantee")
+
+        if close_guarantee is None:
+            validation_messages.append(
+                "Cursor close guarantee: composer is not registered; a "
+                "cursor whose driving loop could not be correlated will "
+                "be opened without a loop, left unclosed, and its "
+                "fetched row will not be processed."
+            )
+        else:
+            converted_cobol = close_guarantee.compose(converted_cobol)
+            validation_messages.extend(
+                self._component_messages(close_guarantee)
+            )
+
+        converted_cobol = composers["sqlcode_cleanup"].compose(converted_cobol)
+        validation_messages.extend(
+            self._component_messages(composers["sqlcode_cleanup"])
+        )
+
+        converted_cobol = composers["cursor_order_cleanup"].compose(
+            converted_cobol
+        )
+        validation_messages.extend(
+            self._component_messages(composers["cursor_order_cleanup"])
+        )
+
+        #
+        # DB2 DATE comparison realignment.
+        #
+        # A DB2 DATE host is DD.MM.CCYY, 10 bytes. A COBOL date field is
+        # CCYYMMDD, PIC 9(8). Comparing them directly compares '0'
+        # against '2' and selects the wrong rows, so this pass must be
+        # visible in the log whether it fires or not.
+        #
+        date_compare = composers.get("date_compare")
+
+        if date_compare is None:
+            validation_messages.append(
+                "DB2 date compare: composer is not registered; DATE host "
+                "comparisons will not be realigned."
+            )
+        else:
+            converted_cobol = date_compare.compose(converted_cobol)
+            validation_messages.extend(
+                self._component_messages(date_compare)
+            )
+
+        return converted_cobol
+    # ------------------------------------------------------------------
+    # Cleanup passes
+    # ------------------------------------------------------------------
+    def _apply_cleanup_composers(
+        self,
+        *,
+        converted_cobol: str,
+        composers: dict,
+        validation_messages: list[str],
+    ) -> str:
+        """Content-level cleanup, before any layout decision is taken.
+
+        feedback_cleanup == CobolCleanupComposer. It runs
+        OutputWritePlacementCleanup, which moves the guarded output WRITE
+        out of the child-row paragraph into the parent paragraph. The
+        paragraph EXTRACTION in the finishing phase depends on that
+        relocation having already happened.
+        """
         converted_cobol = composers["feedback_cleanup"].compose(
             converted_cobol
         )
@@ -249,98 +397,7 @@ class ConversionPipeline:
             self._component_messages(composers["update_restart_skip"])
         )
 
-        # ------------------------------------------------------------------
-        # Layout
-        # ------------------------------------------------------------------
-        converted_cobol = composers["formatter"].format(converted_cobol)
-        converted_cobol = composers["manual_layout"].compose(converted_cobol)
-        converted_cobol = composers["style_preserver"].preserve(
-            original_text=conversion_input.idms_cobol_text,
-            converted_text=converted_cobol,
-        )
+        return converted_cobol
 
-        # Fixed-format ALL lines BEFORE commenting so generator-inserted
-        # blocks are sequenced and comment lines cannot be collapsed (they do
-        # not exist yet at this point).
-        converted_cobol = composers["fixed_format"].format(converted_cobol)
 
-        # ------------------------------------------------------------------
-        # Output write paragraph extraction
-        #
-        # Lifts the record-population body out of the guard and into its own
-        # WRITE-<record> paragraph, replacing it with a PERFORM plus the
-        # output counter increment, matching the manual reference.
-        #
-        # Runs AFTER fixed_format so each generated line can clone a real
-        # sequence area.
-        # ------------------------------------------------------------------
-        output_write_paragraph_composer = OutputWriteParagraphComposer()
-        converted_cobol = output_write_paragraph_composer.compose(
-            converted_cobol
-        )
-        validation_messages.extend(
-            self._component_messages(output_write_paragraph_composer)
-        )
-
-        # ------------------------------------------------------------------
-        # Late DB2 date conversion
-        #
-        # Db2DateOutputCleanup and InitializeBeforeOutputCleanup live inside
-        # feedback_cleanup and have already finished. The write block only
-        # just reached its final paragraph, so without this second run a DB2
-        # date host field is moved straight into the output record and skips
-        # the CCYYMMDD realignment. Idempotent: a converted move carries no
-        # DCLGEN qualifier and cannot match again.
-        # ------------------------------------------------------------------
-        late_date_composer = LateDb2DateComposer()
-        converted_cobol = late_date_composer.compose(converted_cobol)
-        validation_messages.extend(
-            self._component_messages(late_date_composer)
-        )
-
-        # ------------------------------------------------------------------
-        # Counter declarations
-        #
-        # Declares every WS-NB-*-COUNT the PROCEDURE DIVISION increments but
-        # WORKING-STORAGE does not define, and appends the end-of-run totals
-        # before STOP RUN.
-        #
-        # Runs AFTER the extraction above, which is what emits the increment,
-        # and BEFORE the indent normalizer so the generated DISPLAY lines are
-        # aligned with every other statement.
-        # ------------------------------------------------------------------
-        counter_composer = CounterDeclarationComposer()
-        converted_cobol = counter_composer.compose(converted_cobol)
-        validation_messages.extend(
-            self._component_messages(counter_composer)
-        )
-
-        # ------------------------------------------------------------------
-        # LAST content pass: comment unmapped record blocks (record-level).
-        # ------------------------------------------------------------------
-        unmapped_block_composer = UnmappedRecordBlockComposer(
-            table_name_resolver=resolvers["table_name"],
-            column_name_resolver=resolvers["column_name"],
-            original_idms_text=conversion_input.idms_cobol_text,
-        )
-        converted_cobol = unmapped_block_composer.compose(converted_cobol)
-        validation_messages.extend(
-            self._component_messages(unmapped_block_composer)
-        )
-
-        # Normalize PROCEDURE DIVISION Area-B indentation.
-        # Covers the paragraph created by the extraction and the totals
-        # added by the counter pass.
-        indent_normalizer = ProcedureIndentNormalizer()
-        converted_cobol = indent_normalizer.compose(converted_cobol)
-        validation_messages.extend(
-            self._component_messages(indent_normalizer)
-        )
-
-        # Re-sequence ONLY columns 1-6 and 73-80. Corrects the placeholder
-        # sequence numbers cloned by the extraction and counter passes.
-        converted_cobol = FinalSequenceResequencerService().resequence(
-            converted_cobol
-        )
-
-        return converted_cobol, operations, repositories["dclgen"]
+__all__ = ["ConversionPipeline"]

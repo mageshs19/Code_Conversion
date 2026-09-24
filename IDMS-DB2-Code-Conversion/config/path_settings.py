@@ -169,3 +169,35 @@ def ensure_output_dirs() -> None:
 
 DEFAULT_DCLGEN_CANDIDATE_PATHS = dclgen_paths()
 DEFAULT_COPYBOOK_CANDIDATE_PATHS = copybook_paths()
+
+# LOCATION: config/path_settings.py
+# ACTION: APPEND at the end of the file
+
+# ---- LRF (Logical Record Facility) subschema input -------------------
+# Separate folder, exactly like Mapping Sheet / DCLGen / Copybook:
+#   C:\S\S-Input\LRF\Sub Schema.txt
+DEFAULT_LRF_DIR = DEFAULT_INPUT_DIR / "LRF"
+
+SUPPORTED_LRF_EXTENSIONS = (
+    ".txt",
+    ".sub",
+    ".sch",
+    ".cpy",
+    ".cbl",
+)
+
+
+def lrf_paths() -> list[Path]:
+    """Return all LRF subschema files from the LRF folder."""
+    return files_in_folder(
+        DEFAULT_LRF_DIR,
+        SUPPORTED_LRF_EXTENSIONS,
+    )
+
+
+def ensure_lrf_dir() -> None:
+    """Create the optional LRF folder when it does not exist."""
+    DEFAULT_LRF_DIR.mkdir(parents=True, exist_ok=True)
+
+
+DEFAULT_LRF_CANDIDATE_PATHS = lrf_paths()

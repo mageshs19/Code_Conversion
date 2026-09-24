@@ -93,3 +93,26 @@ DECLARE_SQL_LOCATION_FIELD = False
 # =====================================================================
 DCLGEN_GROUP_PREFIX = "DCL"
 DCLGEN_INITIALIZE_TEMPLATE = "INITIALIZE {group}"
+
+COMMENT_TITLE_WIDTH = COMMENT_BODY_WIDTH - 2
+
+# Long marker -> short marker. Keyed on the long form so a caller never
+# has to know a fallback exists.
+MARKER_SHORT_FORMS = {
+    DB2_INFRASTRUCTURE_MARKER: DB2_INFRASTRUCTURE_MARKER_SHORT,
+}
+
+# Last resort when even the short form does not fit. Truncation is
+# visible and deliberate; a wrapped banner is neither.
+MARKER_TRUNCATION_SUFFIX = "..."
+
+MARKER_MESSAGES = {
+    "short_form_used": (
+        "DB2 infrastructure: marker {length} characters exceeds the "
+        "{width}-column banner window; used the short form."
+    ),
+    "truncated": (
+        "DB2 infrastructure: marker {length} characters exceeds the "
+        "{width}-column banner window and has no short form; truncated."
+    ),
+}

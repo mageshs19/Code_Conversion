@@ -79,3 +79,75 @@ DB2_DATE_CONVERSION_LINE_TEMPLATES = [
 
 
 DB2_DATE_IF_REPLACEMENT_TEMPLATE = "{indent}IF {helper} {condition}"
+
+# LOCATION: rules/db2_date_conversion_rules.py
+# ACTION: APPEND at the end of the file
+
+#
+# ---- Compound / multi-line condition support (appended)
+#
+# A DB2 DATE host is stored in external form DD.MM.CCYY (10 bytes). A
+# COBOL date field is normally CCYYMMDD, PIC 9(8). Comparing them directly
+# compares '0' against '2' and selects the wrong rows, so every DATE host
+# that appears in a comparison is first realigned into a HELP- helper.
+#
+ENFORCE_DATE_COMPARISON_CONVERSION = True
+
+# Physical lines scanned forward looking for the end of one condition.
+CONDITION_SCAN_LIMIT = 24
+
+# Refuse rather than guess when the condition is larger than this.
+MAX_DATE_OPERANDS_PER_CONDITION = 8
+
+# Replacement for a whole condition, however compound.
+# The old DB2_DATE_IF_REPLACEMENT_TEMPLATE handled one operand only.
+DB2_DATE_IF_CONDITION_TEMPLATE = "{indent}IF {condition}"
+
+# Banner emitted immediately above a generated realignment block.
+DB2_DATE_CONVERSION_BANNER_TEMPLATE = (
+    "{indent}* DB2: realigned {count} DB2 DATE host(s) before comparison."
+)
+
+#
+# ---- Loud refusal
+#
+# A pass that cannot handle its input must say so. Returning the text
+# unchanged made a skipped conversion indistinguishable from a program
+# with no dates at all, which is how the wrong-row defect shipped.
+#
+EMIT_DATE_REFUSAL_COMMENT = True
+
+DB2_DATE_REFUSAL_COMMENT_TEMPLATE = (
+    "{indent}* DB2 WARNING: {field} is a DB2 DATE host compared against a "
+    "non-DATE field; {reason}"
+)
+
+DB2_DATE_MESSAGES = {
+    "converted": (
+        "DB2 date compare: realigned {count} DATE host(s) in {conditions} "
+        "condition(s)."
+    ),
+    "helpers_declared": (
+        "DB2 date compare: declared {count} HELP- date helper field(s)."
+    ),
+    "condition_unterminated": (
+        "DB2 date compare: condition starting at line {line} was not "
+        "closed within {limit} lines; left unchanged for manual review."
+    ),
+    "too_many_operands": (
+        "DB2 date compare: condition starting at line {line} carries "
+        "{count} DATE operands, above the limit of {limit}; left unchanged "
+        "for manual review."
+    ),
+    "no_comparison_operator": (
+        "DB2 date compare: {field} appears in an IF with no comparison "
+        "operator; left unchanged."
+    ),
+    "inside_exec_sql": (
+        "DB2 date compare: DATE host references inside EXEC SQL are never "
+        "rewritten."
+    ),
+    "nothing_found": (
+        "DB2 date compare: no DB2 DATE host is compared in this program."
+    ),
+}

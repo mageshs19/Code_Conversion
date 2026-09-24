@@ -198,3 +198,13 @@ UI_FILE_VALIDATION = "validation_report.csv"
 UI_FILE_DIAGNOSTICS = "diagnostics.txt"
 UI_MIME_CSV = "text/csv"
 UI_MIME_TEXT = "text/plain"
+
+
+WARNING_KEYWORDS = tuple(WARNING_KEYWORDS) + (
+    "refused rather than",
+    "left for manual review",
+    "left unchanged",
+    "no readable pic",
+    "is not wired into this build",
+    "0 movable field",
+)

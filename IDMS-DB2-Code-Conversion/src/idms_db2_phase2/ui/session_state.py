@@ -1,3 +1,6 @@
+# LOCATION: src/idms_db2_phase2/ui/session_state.py
+# ACTION: REPLACE ENTIRE FILE
+
 from __future__ import annotations
 
 import streamlit as st
@@ -8,6 +11,7 @@ def initialize_session_state() -> None:
         "sheet_mapping_rows": [],
         "dclgen_columns": [],
         "copybook_fields": [],
+        "logical_records": [],
         "idms_cobol_text": "",
         "idms_cobol_source_name": "",
         "converted_cobol": "",
@@ -23,7 +27,6 @@ def initialize_session_state() -> None:
     for key, value in defaults.items():
         if key in st.session_state:
             continue
-
         if isinstance(value, list):
             st.session_state[key] = []
         elif isinstance(value, dict):

@@ -1,3 +1,6 @@
+# LOCATION: src/idms_db2_phase2/ui/conversion_actions.py
+# ACTION: REPLACE ENTIRE FILE
+
 from __future__ import annotations
 
 import re
@@ -9,6 +12,12 @@ from idms_db2_phase2.orchestration.conversion_service import ConversionService
 from idms_db2_phase2.parsers.cobol_parser import CobolParser
 from idms_db2_phase2.services.name_derivation_resolver import NameDerivationResolver
 from idms_db2_phase2.ui.file_name_utils import build_converted_cobol_file_name
+from patterns.lrf_patterns import COPY_IDMS_LR_PATTERN
+from rules.lrf_rules import (
+    DIAG_LRF_NO_RECORDS_IN_SCOPE,
+    DIAG_LRF_RECORDS_IN_SCOPE_TEMPLATE,
+    LRF_VALIDATION_MESSAGES,
+)
 
 
 # Detects any IDMS write verb in the SOURCE program (STORE/MODIFY/ERASE).
@@ -35,6 +44,62 @@ def resolve_target_program_id(source_text: str) -> str:
 def _is_update_program(source_text: str) -> bool:
     """True when the source contains IDMS write verbs (STORE/MODIFY/ERASE)."""
     return bool(_IDMS_WRITE_PATTERN.search(str(source_text or "")))
+
+
+# ---------------------------------------------------------------------------
+# LRF (Logical Record Facility)
+# ---------------------------------------------------------------------------
+def _logical_records() -> list:
+    """LRF logical records currently held in session state.
+
+    Read with .get() so a session created before the LRF uploader existed
+    still converts without raising a KeyError.
+    """
+    return list(st.session_state.get("logical_records") or [])
+
+
+def _source_uses_logical_records(source_text: str) -> list[str]:
+    """Logical record names the SOURCE program copies via COPY IDMS LR."""
+    names: list[str] = []
+    for raw_line in str(source_text or "").splitlines():
+        match = COPY_IDMS_LR_PATTERN.search(raw_line)
+        if not match:
+            continue
+        name = str(match.group("lr") or "").strip().upper()
+        if name and name not in names:
+            names.append(name)
+    return names
+
+
+def _narrate_lrf(
+    *,
+    source_text: str,
+    logical_records: list,
+    diagnostics: list[str],
+) -> None:
+    """Record what LRF metadata this conversion will actually see.
+
+    Never blocks the run. A program that copies a logical record without a
+    matching LRF subschema is reported once, so the gap is visible in the
+    Validation tab instead of failing silently.
+    """
+    if logical_records:
+        names = ", ".join(
+            str(getattr(record, "logical_record_name", "") or "")
+            for record in logical_records
+        )
+        diagnostics.append(
+            DIAG_LRF_RECORDS_IN_SCOPE_TEMPLATE.format(
+                count=len(logical_records),
+                names=names,
+            )
+        )
+    else:
+        diagnostics.append(DIAG_LRF_NO_RECORDS_IN_SCOPE)
+
+    used = _source_uses_logical_records(source_text)
+    if used and not logical_records:
+        diagnostics.append(LRF_VALIDATION_MESSAGES["missing_lrf"])
 
 
 def _apply_update_postprocess(
@@ -160,19 +225,30 @@ def generate_db2_cobol() -> None:
     idms_cobol_text = st.session_state.idms_cobol_text
     target_program_id = resolve_target_program_id(idms_cobol_text)
 
+    # LRF metadata is optional. Narrate it before conversion so the log
+    # reads in the same order the pipeline consumed its inputs.
+    logical_records = _logical_records()
+    lrf_messages: list[str] = []
+    _narrate_lrf(
+        source_text=idms_cobol_text,
+        logical_records=logical_records,
+        diagnostics=lrf_messages,
+    )
+
     service = ConversionService()
     result = service.convert(
         ConversionInput(
             sheet_mapping_rows=st.session_state.sheet_mapping_rows,
             dclgen_columns=st.session_state.dclgen_columns,
             copybook_fields=st.session_state.copybook_fields,
+            logical_records=logical_records,
             idms_cobol_text=idms_cobol_text,
             target_program_id=target_program_id,
         )
     )
 
     converted_cobol = result.converted_cobol or ""
-    validation_messages = list(result.validation_messages or [])
+    validation_messages = lrf_messages + list(result.validation_messages or [])
 
     program_kind = "retrieval"
     if converted_cobol and _is_update_program(idms_cobol_text):
@@ -200,7 +276,8 @@ def generate_db2_cobol() -> None:
     if st.session_state.generated:
         st.success(
             f"DB2 COBOL generated ({program_kind} program, PROGRAM-ID: "
-            f"{target_program_id or '(preserved from source)'}). "
+            f"{target_program_id or '(preserved from source)'}"
+            f"{_lrf_suffix(logical_records)}). "
             "Download is now available in the Main tab."
         )
     else:
@@ -208,6 +285,13 @@ def generate_db2_cobol() -> None:
             "DB2 COBOL was not generated. "
             "Review the Validation and Diagnostics tabs."
         )
+
+
+def _lrf_suffix(logical_records: list) -> str:
+    """Short LRF note appended to the success banner."""
+    if not logical_records:
+        return ""
+    return f", LRF logical records: {len(logical_records)}"
 
 
 def _validate_generation_inputs() -> bool:

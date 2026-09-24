@@ -149,3 +149,30 @@ IDMS_DECLARATIVE_OR_CONTROL_PATTERNS = [
     re.compile(r"^\s*DB\s+[A-Z0-9-]+\s+WITHIN\s+[A-Z0-9-]+\b", flags=re.IGNORECASE),
     re.compile(r"^\s*COPY\s+IDMS\b", flags=re.IGNORECASE),
 ]
+
+# LOCATION: patterns/idms_patterns.py
+# ACTION: APPEND at the end of the file
+
+# PROTOCOL continuation. The statement is
+#
+#     PROTOCOL. MODE IS BATCH-AUTOSTATUS DEBUG
+#               IDMS-RECORDS MANUAL.
+#
+# Removing only the PROTOCOL line leaves "IDMS-RECORDS MANUAL." behind as
+# residual IDMS, which CHK-03 reports and the compiler rejects.
+IDMS_RECORDS_CLAUSE_PATTERN = re.compile(
+    r"^\s*IDMS-RECORDS\s+(?:MANUAL|AUTOMATIC|WITHIN\b.*)\s*\.?\s*$",
+    flags=re.IGNORECASE,
+)
+
+MODE_IS_CLAUSE_PATTERN = re.compile(
+    r"^\s*MODE\s+IS\s+[A-Z0-9-]+",
+    flags=re.IGNORECASE,
+)
+
+IDMS_DECLARATIVE_OR_CONTROL_PATTERNS.extend(
+    [
+        IDMS_RECORDS_CLAUSE_PATTERN,
+        MODE_IS_CLAUSE_PATTERN,
+    ]
+)

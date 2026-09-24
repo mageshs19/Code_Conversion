@@ -1,25 +1,7 @@
 # LOCATION: src/idms_db2_phase2/generators/db2_infrastructure/cursor_declare_builder.py
 # ACTION: CREATE NEW FILE
 
-"""Builds a DECLARE CURSOR statement.
 
-    EXEC SQL
-      DECLARE DZBEFFC1 CURSOR WITH HOLD FOR
-      SELECT
-        CO_IDPRKSK_479BEFF
-       , NS_IRMOSTK_479BEFF
-      FROM DZBEFFTV
-      FOR READ ONLY
-    END-EXEC.
-
-Every line sits in Area B. The block form is used here deliberately: a
-DECLARE is long enough that the single-line shape used for INCLUDE would
-not fit columns 8 to 72.
-
-Nothing is fabricated. A spec without a cursor name or without a resolved
-DB2 table produces a DB2 WARNING comment rather than guessed SQL, per
-CONVERSION_RULES.
-"""
 
 from __future__ import annotations
 
@@ -44,7 +26,12 @@ from rules.db2_infrastructure_rules import (
     TOKEN_SELECT,
     TOKEN_WHERE,
 )
-
+from rules.cursor_declaration_rules import (
+    EMIT_QUERYNO,
+    QUERYNO_BASE,
+    QUERYNO_STEP,
+    QUERYNO_TEMPLATE,
+)
 
 class CursorDeclareBuilder:
     """Renders one DECLARE CURSOR statement."""
@@ -56,6 +43,12 @@ class CursorDeclareBuilder:
     # Public entry point
     # =================================================================
     def build(self, spec: CursorSpec) -> list[str]:
+        """One DECLARE CURSOR statement.
+
+        Clause order is fixed by SQL: SELECT, FROM, WHERE, ORDER BY,
+        FOR READ ONLY, QUERYNO. QUERYNO must be the last clause inside
+        the statement, immediately before END-EXEC.
+        """
         if not spec.cursor_name:
             return [MISSING_CURSOR_NAME]
 
@@ -77,10 +70,11 @@ class CursorDeclareBuilder:
         lines.extend(self._where_lines(spec))
         lines.extend(self._order_by_lines(spec))
         lines.append(f"{IND_SQL_BODY}{TOKEN_FOR_READ_ONLY}")
+        lines.extend(self._queryno_lines(spec))
         lines.append(f"{IND_EXEC}{TOKEN_END_EXEC}")
 
         return lines
-
+    
     # =================================================================
     # Clauses
     # =================================================================
@@ -113,6 +107,28 @@ class CursorDeclareBuilder:
                 items=spec.where_conditions,
                 indent=IND_WHERE_NEXT,
             ),
+        ]
+
+    @staticmethod
+    def _queryno_lines(spec: CursorSpec) -> list[str]:
+        """QUERYNO clause, derived from the cursor's position.
+
+        DB2 EXPLAIN identifies a statement by QUERYNO. Without one, an
+        access path cannot be tied back to the cursor that produced it.
+
+        The number is DERIVED, never hardcoded, so repeated runs are
+        byte-identical and two cursors in the same program can never
+        collide:
+
+            QUERYNO_BASE + cursor_order * QUERYNO_STEP
+        """
+        if not EMIT_QUERYNO:
+            return []
+
+        number = QUERYNO_BASE + (spec.cursor_order * QUERYNO_STEP)
+
+        return [
+            f"{IND_SQL_BODY}{QUERYNO_TEMPLATE.format(number=number)}"
         ]
 
     def _order_by_lines(self, spec: CursorSpec) -> list[str]:

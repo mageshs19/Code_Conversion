@@ -94,31 +94,24 @@ STEP_REVIEW_RETRIEVAL = "review_retrieval"
 STEP_REVIEW_UPDATE = "review_update"
 
 STEP_DEFINITIONS = (
-    (
-        STEP_CONVERT_RETRIEVAL,
-        "Convert retrieval",
-        "src/idms_db2_phase2/testing/run_retrieval.py",
-        False,
-    ),
-    (
-        STEP_CONVERT_UPDATE,
-        "Convert update",
-        "src/idms_db2_phase2/testing/run_update.py",
-        False,
-    ),
-    (
-        STEP_REVIEW_RETRIEVAL,
-        "Review retrieval",
-        "code_review/runner/review_retrieval.py",
-        True,
-    ),
-    (
-        STEP_REVIEW_UPDATE,
-        "Review update",
-        "code_review/runner/review_update.py",
-        True,
-    ),
+    (STEP_CONVERT_RETRIEVAL, "Convert retrieval", "src/idms_db2_phase2/testing/run_retrieval.py", False),
+    (STEP_CONVERT_UPDATE,    "Convert update",    "src/idms_db2_phase2/testing/run_update.py",    False),
+    (STEP_REVIEW_RETRIEVAL,  "Review retrieval",  "code_review/runner/review_file.py",            True),
+    (STEP_REVIEW_UPDATE,     "Review update",     "code_review/runner/review_file.py",            True),
 )
+
+# review_file.py REVIEWS ONLY. review_retrieval.py / review_update.py are
+# end-to-end runners: they convert first, so pairing them with a convert
+# step ran the whole pipeline twice.
+REVIEW_FOLDER_ARG = "--folder"
+REVIEW_KIND_ARG = "--kind"
+KIND_RETRIEVAL = "RETRIEVAL"
+KIND_UPDATE = "UPDATE"
+
+STEP_REVIEW_KIND = {
+    STEP_REVIEW_RETRIEVAL: KIND_RETRIEVAL,
+    STEP_REVIEW_UPDATE: KIND_UPDATE,
+}
 
 MODE_RETRIEVAL = "retrieval"
 MODE_UPDATE = "update"
@@ -257,3 +250,17 @@ LABEL_MODE = "Mode"
 CARRIAGE_RETURN = "\r"
 ERASE_LINE = "\033[2K"
 CLEAR_PAD_WIDTH = CONSOLE_WIDTH + 40
+REVIEW_FOLDER_ARG = "--folder"
+REVIEW_KIND_ARG = "--kind"
+
+# Review the file the convert step just wrote, not the folder's history.
+# review_file.py sorts by st_mtime descending and returns files[:1].
+REVIEW_LATEST_ARG = "--latest"
+
+KIND_RETRIEVAL = "RETRIEVAL"
+KIND_UPDATE = "UPDATE"
+
+STEP_REVIEW_KIND = {
+    STEP_REVIEW_RETRIEVAL: KIND_RETRIEVAL,
+    STEP_REVIEW_UPDATE: KIND_UPDATE,
+}
