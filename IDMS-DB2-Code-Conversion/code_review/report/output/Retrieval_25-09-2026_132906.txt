@@ -1,11 +1,11 @@
 Code Review Report
 --------------------------------------------------------------------------
-Program            : Retrieval_24-09-2026_164650
+Program            : Retrieval
 Program Kind       : RETRIEVAL
-Reviewed File      : Retrieval_24-09-2026_164650.cbl
-Reviewed           : 24-09-2026 16:46:50
-Checks             : 11 passed, 2 failed, 12 skipped, 0 blocked
-Criteria           : 79 passed, 3 failed, 32 skipped, 0 blocked
+Reviewed File      : Retrieval_25-09-2026_132906.cbl
+Reviewed           : 25-09-2026 13:29:06
+Checks             : 13 passed, 4 failed, 8 skipped, 0 blocked
+Criteria           : 104 passed, 6 failed, 20 skipped, 0 blocked
 Result             : REJECTED
 Blocking           : CHK-04
 
@@ -29,10 +29,6 @@ PASS  CHK-05 Critical SQL error paragraph and routing
         CHK-05.02 Exactly one SQLERROR paragraph is declared
             note : SQLERROR is supplied by INCLUDE SQLERROR, not declared in the program.
 PASS  CHK-08 Critical DCLGEN include and copybook integrity
-        CHK-08.05 Every INCLUDE names a known DCLGEN table
-            note : No DCLGEN metadata supplied for this run.
-        CHK-08.06 Every DCLGEN host variable used has its table included
-            note : No DCLGEN metadata supplied for this run.
         CHK-08.09 Every COPY member resolves to a copybook record
             note : Copybook member names are not part of the supplied metadata (decision open).
 PASS  CHK-03 Critical No residual IDMS statements
@@ -41,8 +37,6 @@ FAIL  CHK-04 Critical Compiler option and PROGRAM-ID
             note : no CBL line found
         CHK-04.02 Exactly one compiler option line
             note : found 0
-        CHK-04.04 PROGRAM-ID matches derived name
-            note : No source program supplied for comparison.
         CHK-04.05 END PROGRAM matches PROGRAM-ID
             note : END PROGRAM is not part of the site standard.
         CHK-04.06 CS-PROGRAM holds the PROGRAM-ID
@@ -54,9 +48,9 @@ PASS  CHK-09 Major    Record retrieval conversion
             note : Program contains no business singleton SELECT.
         CHK-09.04 Every SELECT is key qualified
             note : Program contains no business singleton SELECT.
-PASS  CHK-11 Major    SQLCODE and COMMIT conversion
+FAIL  CHK-11 Major    SQLCODE and COMMIT conversion
         CHK-11.08 FINISH converted to COMMIT
-            note : No source program supplied for comparison.
+            note : Source has FINISH but no generated COMMIT block was found.
 PASS  CHK-12 Critical Cursor declaration standard
 PASS  CHK-13 Major    Cursor paragraph structure
 FAIL  CHK-14 Major    End-of-cursor handling
@@ -87,26 +81,25 @@ SKIP  CHK-20 Major    Restart SQL generated from DCLGEN metadata
 SKIP  CHK-21 Critical Unresolved restart metadata safe skip
         CHK-21.00 Unresolved restart metadata safe skip
             note : Applies to UPDATE programs only.
-SKIP  CHK-22 Critical DB2 table and column naming authority
-        CHK-22.01 Every DB2 table comes from Sheet Mapping or DCLGEN
-            note : No Sheet Mapping or DCLGEN metadata supplied for this run.
-        CHK-22.02 Every DB2 table used has a DCLGEN
-            note : No DCLGEN metadata supplied for this run.
-        CHK-22.03 Every DB2 column comes from DCLGEN
-            note : No DCLGEN metadata supplied for this run.
-        CHK-22.04 Every Sheet Mapping table used resolves to a DCLGEN
-            note : Sheet Mapping or DCLGEN metadata not supplied for this run.
-        CHK-22.05 Every DCL group names a known table
-            note : No DCLGEN metadata supplied for this run.
-SKIP  CHK-23 Critical DCLGEN host variable name exactness
-        CHK-23.00 DCLGEN host variable name exactness
-            note : No DCLGEN metadata supplied for this run.
-SKIP  CHK-24 Major    Picture clause and length validation
-        CHK-24.00 Picture clause and length validation
-            note : No DCLGEN metadata supplied for this run.
-SKIP  CHK-25 Major    Copybook and record usage validation
-        CHK-25.00 Copybook and record usage validation
-            note : No Sheet Mapping or copybook metadata supplied for this run.
+PASS  CHK-22 Critical DB2 table and column naming authority
+PASS  CHK-23 Critical DCLGEN host variable name exactness
+PASS  CHK-24 Major    Picture clause and length validation
+FAIL  CHK-25 Major    Copybook and record usage validation
+        CHK-25.01 No IDMS record name survives as a field qualifier
+            note : missing: AM-BASE-FORM-AS OF VMBFAS, AM-BSDEV-FORM-AS OF VMBFAS, AM-CND-FORM-AS OF VMBFAS, AM-CNDN-FORM-AS OF VMBFAS, AM-CNS-FORM-AS OF VMBFAS, AM-CNSN-FORM-AS OF VMBFAS, AM-CNSSP-FORM-AS OF VMBFAS, AM-DGTTI-FORM-AS OF VMBFAS, AM-FBA-FORM-AS OF VMBFAS, AM-FBB-FORM-AS OF VMBFAS
+            AM-BASE-FORM-AS OF VMBFAS
+            AM-BSDEV-FORM-AS OF VMBFAS
+            AM-CND-FORM-AS OF VMBFAS
+            AM-CNDN-FORM-AS OF VMBFAS
+            AM-CNS-FORM-AS OF VMBFAS
+            AM-CNSN-FORM-AS OF VMBFAS
+            AM-CNSSP-FORM-AS OF VMBFAS
+            AM-DGTTI-FORM-AS OF VMBFAS
+            AM-FBA-FORM-AS OF VMBFAS
+            AM-FBB-FORM-AS OF VMBFAS
+        CHK-25.03 Every referenced IDMS record was converted or documented
+            note : missing: VMBFGD (table DZBFGDTB)
+            VMBFGD (table DZBFGDTB)
 
 Failures
 --------------------------------------------------------------------------
@@ -115,6 +108,14 @@ CHK-04  Critical  Compiler option and PROGRAM-ID
         no CBL line found
     CHK-04.02  Exactly one compiler option line
         found 0
+CHK-11  Major     SQLCODE and COMMIT conversion
+    CHK-11.08  FINISH converted to COMMIT
+        Source has FINISH but no generated COMMIT block was found.
 CHK-14  Major     End-of-cursor handling
     CHK-14.05  Every FETCH paragraph is performed until its flag
         missing: PERFORM 720-FETCH-DZBFASC1 UNTIL DZBFASC1-EOC
+CHK-25  Major     Copybook and record usage validation
+    CHK-25.01  No IDMS record name survives as a field qualifier
+        missing: AM-BASE-FORM-AS OF VMBFAS, AM-BSDEV-FORM-AS OF VMBFAS, AM-CND-FORM-AS OF VMBFAS, AM-CNDN-FORM-AS OF VMBFAS, AM-CNS-FORM-AS OF VMBFAS, AM-CNSN-FORM-AS OF VMBFAS, AM-CNSSP-FORM-AS OF VMBFAS, AM-DGTTI-FORM-AS OF VMBFAS, AM-FBA-FORM-AS OF VMBFAS, AM-FBB-FORM-AS OF VMBFAS
+    CHK-25.03  Every referenced IDMS record was converted or documented
+        missing: VMBFGD (table DZBFGDTB)

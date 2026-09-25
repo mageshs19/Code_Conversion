@@ -84,3 +84,62 @@ CURSOR_COLUMN_MESSAGES["usage_selector_failed"] = (
     "Cursor columns: {record} field-usage selection failed ({reason}); "
     "the SELECT list is full-record only."
 )
+
+ENFORCE_ORDER_BY_COLUMN_VALIDATION = True
+
+# Tokens that are never a DB2 column, whatever the Sheet Mapping says.
+NON_COLUMN_SENTINELS = ("", "FILLER", "N/A", "NA", "-", "NONE")
+
+#
+# --- ORDER BY direction ----------------------------------------------
+#
+# CORRECTION - a sort direction was inferred by SUBSTRING match over free
+# text. The haystack included remarks, basetype, the DB2 data type AND
+# the column name, so
+#
+#     "DESC" in "DESCRIPTION"   ->  True
+#
+# Any row whose Remarks mentioned a description silently reversed that
+# column's sort order. Row sequence in the extract file is business
+# meaning; it must never be decided by prose.
+#
+# Direction inference is now OFF. The manual reference emits a plain
+# ASC. Turn this on only with a DEDICATED Sheet Mapping column that
+# states the direction explicitly - never a remarks field.
+EMIT_ORDER_BY_DIRECTION = False
+
+ORDER_BY_DIRECTION_ASC = "ASC"
+ORDER_BY_DIRECTION_DESC = "DESC"
+
+# Emitted after every column so the intent is explicit in the SQL,
+# matching the manual reference: ORDER BY NR_ID_479BFAS ASC
+EMIT_EXPLICIT_ASC = True
+
+# Fields scanned for a direction hint when EMIT_ORDER_BY_DIRECTION is on.
+# Deliberately EXCLUDES remarks, basetype, data type and the column name.
+DESC_HINT_FIELDS = ("db2_key",)
+
+CURSOR_ORDER_BY_MESSAGES = {
+    "resolved": (
+        "Cursor ORDER BY: {record} resolved {count} column(s): {columns}."
+    ),
+    "dropped_not_a_column": (
+        "Cursor ORDER BY: dropped '{column}' for {record}; it is not a "
+        "DB2 column of that record."
+    ),
+    "dropped_audit": (
+        "Cursor ORDER BY: dropped audit column '{column}' for {record}."
+    ),
+    "dropped_sentinel": (
+        "Cursor ORDER BY: dropped '{column}' for {record}; it is a COBOL "
+        "placeholder, not a DB2 column."
+    ),
+    "none": (
+        "Cursor ORDER BY: {record} yielded no orderable column; the "
+        "cursor returns rows in whatever sequence DB2 chooses."
+    ),
+    "direction_disabled": (
+        "Cursor ORDER BY: direction inference is OFF; {count} column(s) "
+        "default to {direction}."
+    ),
+}

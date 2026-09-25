@@ -176,3 +176,8 @@ IDMS_DECLARATIVE_OR_CONTROL_PATTERNS.extend(
         MODE_IS_CLAUSE_PATTERN,
     ]
 )
+
+IDMS_WRITE_VERB_PATTERN = re.compile(
+    r"\b(?:STORE|MODIFY|ERASE)\s+[A-Z][A-Z0-9-]*",
+    flags=re.IGNORECASE,
+)

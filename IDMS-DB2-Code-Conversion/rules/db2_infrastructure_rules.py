@@ -1,5 +1,21 @@
 # LOCATION: rules/db2_infrastructure_rules.py
-# ACTION: APPEND at the end of the file
+# ACTION: ADD at the TOP of the file, directly under the module
+#         docstring and `from __future__ import annotations`.
+#         There must be NO later assignment to these four names.
+
+# QUERYNO is owned by rules/cursor_declaration_rules.py.
+# RE-EXPORT ONLY - see the QUERYNO note at the end of this file.
+from rules.cursor_declaration_rules import (  # noqa: F401
+    EMIT_QUERYNO,
+    QUERYNO_BASE,
+    QUERYNO_FIRST,
+    QUERYNO_FIRST_ORDER,
+    QUERYNO_STEP,
+    QUERYNO_TEMPLATE,
+)
+# LOCATION: rules/db2_infrastructure_rules.py
+# ACTION: REPLACE the entire appended block with this.
+#         The import moves to the TOP of the file - see FILE 2.
 
 # =====================================================================
 # Area B indentation for generated DB2 blocks
@@ -14,6 +30,19 @@
 # Area A and the check failed.
 #
 # Body indents are relative to column 8.
+#
+# NOTE - rules/cursor_declaration_rules.py declares IND_SELECT_FIRST and
+# IND_SELECT_NEXT with DIFFERENT values. That is not an accident and not
+# a duplicate: the two renderers emit different shapes.
+#
+#     this module              -> CursorDeclareBuilder   (LIVE)
+#                                 SELECT on its own line, columns under it
+#     cursor_declaration_rules -> CursorDeclarationGenerator (legacy)
+#                                 "SELECT <column>" on one line
+#
+# When the legacy generator is deleted, delete its indents with it and
+# these become the only copy. Until then, do NOT "unify" them - the
+# output shapes genuinely differ.
 ENFORCE_AREA_B_SQL_INDENT = True
 
 IND_EXEC = "    "                # column 12 - EXEC SQL, END-EXEC
@@ -58,7 +87,7 @@ VALUE_EOC = "Y"
 SQL_LOCATION_DECLARATION_TEMPLATE = "01  {name:<30} {picture}"
 
 # =====================================================================
-# Warnings
+# Warnings emitted INTO the generated COBOL
 # =====================================================================
 MISSING_CURSOR_NAME = (
     "* DB2 WARNING: Unable to declare cursor; missing cursor name."
@@ -68,7 +97,25 @@ MISSING_TABLE_TEMPLATE = (
     "missing DB2 table mapping."
 )
 
-EMIT_QUERYNO = True
-QUERYNO_BASE = 254
-QUERYNO_STEP = 1
-QUERYNO_TEMPLATE = "QUERYNO {queryno}"
+# =====================================================================
+# QUERYNO
+# =====================================================================
+# DELIBERATELY ABSENT.
+#
+# EMIT_QUERYNO, QUERYNO_BASE, QUERYNO_STEP and QUERYNO_TEMPLATE are
+# RE-EXPORTED from rules/cursor_declaration_rules.py at the TOP of this
+# file. They must never be assigned here.
+#
+# This module previously declared its own copies:
+#
+#     QUERYNO_BASE     = 254      vs  100  in the other module
+#     QUERYNO_TEMPLATE = "{queryno}"  vs  "{number}"
+#
+# cursor_declare_builder.py imports its SQL tokens from HERE and QUERYNO
+# from THERE, so the generated DECLARE carried QUERYNO 119 while the
+# manual reference carries 254 - and swapping the template placeholder
+# raises KeyError at render time, because the builder renders with
+# .format(number=...).
+#
+# Re-exporting above and assigning below would shadow the import and
+# restore the defect, so nothing is assigned here at all.

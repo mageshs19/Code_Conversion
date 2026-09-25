@@ -71,3 +71,21 @@ PERFORM_FETCH_CURSOR_TEMPLATE = "PERFORM FETCH-{cursor}."
 OPERATION_STORE = "STORE"
 OPERATION_MODIFY = "MODIFY"
 OPERATION_ERASE = "ERASE"
+
+FINISH_REMOVED_RETRIEVAL = (
+    "* DB2: Removed IDMS FINISH; retrieval program is read-only "
+    "and needs no COMMIT."
+)
+
+TRANSFORMER_MESSAGES = {
+    "commit_emitted": (
+        "Control statement: FINISH converted to COMMIT (update program)."
+    ),
+    "commit_suppressed": (
+        "Control statement: FINISH removed without COMMIT; retrieval "
+        "programs are read-only (EMIT_COMMIT_IN_RETRIEVAL = False)."
+    ),
+}
+TRANSFORMER_MESSAGES["program_kind"] = (
+    "Program kind: classified as {kind}; COMMIT policy emit_commit={emit}."
+)

@@ -39,3 +39,14 @@ GENERATED_LINE_PREFIXES = (
     "COMMIT",
     "ROLLBACK",
 )
+ENFORCE_PROGRAM_NAME_LITERAL = True
+
+PROGRAM_NAME_LITERAL_MESSAGES = {
+    "rewritten": (
+        "Program name: rewrote MOVE '{old}' TO PROGRAM-NAME as '{new}'."
+    ),
+    "left_unchanged": (
+        "Program name: MOVE '{literal}' TO PROGRAM-NAME does not match "
+        "the source program id; left unchanged."
+    ),
+}

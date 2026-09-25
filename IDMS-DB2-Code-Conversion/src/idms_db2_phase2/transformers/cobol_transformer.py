@@ -1,7 +1,57 @@
+# LOCATION: src/idms_db2_phase2/transformers/cobol_transformer.py
+# ACTION: REPLACE ENTIRE FILE
+"""Converts IDMS COBOL statements to DB2-compatible COBOL.
+
+Responsibilities are delegated to focused helper classes while keeping the
+existing public API unchanged.
+
+CORRECTION 1 - the IDMS-ABORT paragraph BODY survived its header
+-----------------------------------------------------------------
+The source carries
+
+    EINDE-PROGRAMMA-EXIT.
+        EXIT.
+    /
+    IDMS-ABORT.                     <- header
+        CLOSE FORM.                 <- body
+        COPY IDMS IDMS-STATUS.      <- body
+
+Only the header was removed. CLOSE FORM was left stranded after a
+paragraph EXIT, and StructuralSafetyComposer then correctly commented it
+as unreachable:
+
+    *DB2-KEEP: statement follows a paragraph EXIT and is unreachable.
+    *DB2-KEEP CLOSE FORM.
+
+The safety pass was right; the removal was incomplete. The manual
+reference deletes the whole paragraph. Skipping now runs to the next
+paragraph header, section header or division boundary, so no business
+line can be swallowed, and a blast-radius cap reverts to normal
+processing if the boundary is never found.
+
+CORRECTION 2 - PROGRAM-NAME disagreed with PROGRAM-ID
+------------------------------------------------------
+PROGRAM-ID was rewritten to the derived DB2 id while
+
+    MOVE 'VM7BD200' TO PROGRAM-NAME.
+
+kept the source id, so the job log and every abend message named a
+program that no longer exists. The manual reference carries
+MOVE 'VMDZ7200' TO PROGRAM-NAME.
+
+ProgramNameSyncService already performs this rewrite safely - it reads
+the FINAL PROGRAM-ID out of the converted text and touches only a
+MOVE literal TO PROGRAM-NAME. It was simply never called. It runs as the
+last pass, AFTER fix_program_id_period, so the id it reads is final.
+"""
+
 from __future__ import annotations
 
 from idms_db2_phase2.domain.models import IdmsOperation
 from idms_db2_phase2.parsers.cobol_parser import CobolParser
+from idms_db2_phase2.services.program_name_sync_service import (
+    ProgramNameSyncService,
+)
 from idms_db2_phase2.transformers.cobol_program_id_transformer import (
     CobolProgramIdTransformer,
 )
@@ -17,19 +67,24 @@ from idms_db2_phase2.transformers.idms_statement_transformer import (
 )
 from patterns.cobol_patterns import DIVISION_PATTERN
 from patterns.db2_patterns import SQL_ERROR_PARAGRAPH_PATTERN
+from patterns.final_feedback_fix_patterns import (
+    DIVISION_SECTION_HEADER_PATTERN,
+    PARAGRAPH_HEADER_PATTERN,
+)
+from rules.cobol_statement_rules import NON_PARAGRAPH_SINGLE_WORDS
 from rules.cobol_transformer_rules import (
     DB2_COMPILER_OPTION_LINE,
     DEFAULT_SQL_ERROR_PARAGRAPH,
 )
 
+# Blast-radius cap for the orphan IDMS-ABORT body skip. A paragraph body
+# that long means the boundary test has lost sync, so normal processing
+# resumes rather than deleting the rest of the program.
+IDMS_ABORT_BODY_LINE_LIMIT = 20
+
 
 class CobolTransformer:
-    """
-    Converts IDMS COBOL statements to DB2-compatible COBOL.
-
-    Responsibilities are delegated to focused helper classes while keeping the
-    existing public API unchanged.
-    """
+    """Converts IDMS COBOL statements to DB2-compatible COBOL."""
 
     def __init__(
         self,
@@ -42,11 +97,15 @@ class CobolTransformer:
         self.program_id_transformer = CobolProgramIdTransformer(
             line_utils=self.line_utils,
         )
+        self.program_name_sync = ProgramNameSyncService()
         self.residual_cleanup = IdmsResidualCleanup()
         self.line_merger = CobolTransformedLineMerger(
             line_utils=self.line_utils,
         )
 
+    # =================================================================
+    # Public entry point
+    # =================================================================
     def transform(
         self,
         cobol_text: str,
@@ -58,19 +117,37 @@ class CobolTransformer:
         output_lines: list[str] = []
         current_division = ""
         sql_error_paragraph = self._detect_sql_error_paragraph(cobol_text)
-        skip_orphan_idms_abort_exit = False
+
+        skip_idms_abort_body = False
+        idms_abort_skipped = 0
 
         for raw_line in str(cobol_text or "").splitlines():
             line = raw_line.rstrip()
             logical = self.line_utils.logical_line(line)
             logical_stripped = logical.strip()
 
-            if skip_orphan_idms_abort_exit:
-                if self.residual_cleanup.is_exit_line(logical_stripped):
-                    skip_orphan_idms_abort_exit = False
+            # ---- Orphan IDMS-ABORT body.
+            #
+            # The header has already been replaced by a comment. Every
+            # line up to the next paragraph, section or division header
+            # belongs to that paragraph and goes with it.
+            if skip_idms_abort_body:
+                if self._ends_idms_abort_body(logical_stripped):
+                    skip_idms_abort_body = False
+                    idms_abort_skipped = 0
+                    # fall through: this line starts the NEXT block
+                elif idms_abort_skipped >= IDMS_ABORT_BODY_LINE_LIMIT:
+                    skip_idms_abort_body = False
+                    idms_abort_skipped = 0
+                    validation_messages.append(
+                        "Residual cleanup: orphan IDMS-ABORT body exceeded "
+                        f"{IDMS_ABORT_BODY_LINE_LIMIT} lines; the remaining "
+                        "lines were kept."
+                    )
+                    # fall through: keep this line
+                else:
+                    idms_abort_skipped += 1
                     continue
-
-                skip_orphan_idms_abort_exit = False
 
             if not logical_stripped:
                 output_lines.append(line)
@@ -89,7 +166,8 @@ class CobolTransformer:
                 output_lines.append(
                     "* DB2: Removed orphan IDMS-ABORT paragraph."
                 )
-                skip_orphan_idms_abort_exit = True
+                skip_idms_abort_body = True
+                idms_abort_skipped = 0
                 continue
 
             program_id_line = self.program_id_transformer.program_id_replacement(
@@ -155,7 +233,45 @@ class CobolTransformer:
             target_program_id=target_program_id,
         )
 
+        # PROGRAM-NAME must agree with the FINAL PROGRAM-ID, so this runs
+        # last. Safe by construction: ProgramNameSyncService reads the id
+        # out of the converted text and rewrites only a
+        # MOVE literal TO PROGRAM-NAME.
+        converted_text = self.program_name_sync.sync(converted_text)
+
         return converted_text, validation_messages, operations
+
+    # =================================================================
+    # Helpers
+    # =================================================================
+    def _ends_idms_abort_body(
+        self,
+        logical_line: str,
+    ) -> bool:
+        """True when this line starts something that is NOT the body.
+
+        A paragraph header, a section header or a division boundary ends
+        the orphaned block. EXIT. is NOT a boundary - it is a single
+        word ending in a period that looks like a header but belongs to
+        the removed paragraph, which is why NON_PARAGRAPH_SINGLE_WORDS
+        is consulted.
+        """
+        text = str(logical_line or "").strip()
+        if not text:
+            return False
+
+        if DIVISION_PATTERN.match(text):
+            return True
+
+        if DIVISION_SECTION_HEADER_PATTERN.match(text.upper()):
+            return True
+
+        match = PARAGRAPH_HEADER_PATTERN.match(text.upper())
+        if not match:
+            return False
+
+        word = text.rstrip(". ").upper()
+        return bool(word) and word not in NON_PARAGRAPH_SINGLE_WORDS
 
     def _is_cbl_line(
         self,

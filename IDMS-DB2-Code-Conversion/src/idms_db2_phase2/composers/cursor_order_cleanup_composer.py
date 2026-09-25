@@ -16,20 +16,36 @@ business fields.
 """
 
 from patterns.sequence_patterns import strip_sequence_numbers
-
+from rules.cursor_order_cleanup_rules import (          # <-- ADD
+    CURSOR_ORDER_CLEANUP_MESSAGES,
+    ENFORCE_PARENT_CURSOR_ORDER_BY_CLEANUP,
+)
 
 class CursorOrderCleanupComposer:
+    def __init__(self) -> None:
+        self.messages: list[str] = []
+
+    # -----------------------------------------------------------------
+    # Public entry point
+    # -----------------------------------------------------------------
     def compose(
         self,
         text: str,
     ) -> str:
+        self.messages = []
+
         if not text:
             return ""
+
+        if not ENFORCE_PARENT_CURSOR_ORDER_BY_CLEANUP:
+            self.messages.append(CURSOR_ORDER_CLEANUP_MESSAGES["disabled"])
+            return text
 
         lines = self._normalize_line_endings(text).splitlines()
 
         output: list[str] = []
         index = 0
+        removed = 0
 
         while index < len(lines):
             if not self._is_exec_sql_start(lines[index]):
@@ -47,13 +63,24 @@ class CursorOrderCleanupComposer:
                 index = next_index
                 continue
 
-            output.extend(
-                self._cleanup_cursor_declare_block(block)
-            )
+            cleaned = self._clean_declare_block(block)
+            if len(cleaned) != len(block):
+                removed += 1
+
+            output.extend(cleaned)
             index = next_index
 
-        return "\n".join(output).rstrip() + "\n"
+        if removed:
+            self.messages.append(
+                CURSOR_ORDER_CLEANUP_MESSAGES["removed"].format(count=removed)
+            )
+        else:
+            self.messages.append(
+                CURSOR_ORDER_CLEANUP_MESSAGES["none_found"]
+            )
 
+        return "\n".join(output)
+    
     def _normalize_line_endings(
         self,
         text: str,

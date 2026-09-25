@@ -198,6 +198,18 @@ class ConversionPipeline:
             composers=composers,
             validation_messages=validation_messages,
         )
+        commit_cleanup = composers.get("retrieval_commit_cleanup")
+
+        if commit_cleanup is None:
+            validation_messages.append(
+                "Retrieval cleanup: composer is not registered; a COMMIT "
+                "in a read-only program will not be removed."
+            )
+        else:
+            converted_cobol = commit_cleanup.compose(converted_cobol)
+            validation_messages.extend(
+                self._component_messages(commit_cleanup)
+            )
 
         # ------------------------------------------------------------------
         # FINISHING phase

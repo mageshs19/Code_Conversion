@@ -1,6 +1,7 @@
 # LOCATION: rules/update_sql_cleanup_rules.py
 # ACTION: REPLACE ENTIRE FILE
 import re
+from rules.key_naming_rules import IDENTITY_KEY_PREFIXES  # noqa: F401
 """
 Update-program SQL cleanup constant tuples.
 

@@ -217,3 +217,8 @@ NON_PARAGRAPH_SINGLE_WORDS = {
     "WHEN",
     "WRITE",
 }
+
+PROGRAM_NAME_LITERAL_MOVE_PATTERN = re.compile(
+    r"\bMOVE\s+'(?P<literal>[A-Z0-9][A-Z0-9-]*)'\s+TO\s+PROGRAM-NAME",
+    flags=re.IGNORECASE,
+)
