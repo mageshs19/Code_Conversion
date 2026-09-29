@@ -13,3 +13,4 @@ LOG_MESSAGE_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
 LOG_DATE_FORMAT = "%d-%m-%Y %H:%M:%S"
 
 DEFAULT_LOG_LEVEL = "INFO"
+
