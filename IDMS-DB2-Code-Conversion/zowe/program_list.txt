@@ -1,0 +1,5 @@
+# One IDMS program per line. Blank lines and # comments ignored.
+# Only these programs are fetched, converted, reviewed and written back.
+VM7BD200
+VM4BD420
+VM9BZ270
