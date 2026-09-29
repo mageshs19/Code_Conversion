@@ -100,3 +100,9 @@ SOURCE_PROGRAM_ID_PATTERN = re.compile(
     r"^(?P<app>[A-Z]{2})(?P<digit>[0-9])(?P<suffix>[A-Z]{2})(?P<tail>[0-9A-Z]+)$",
     flags=re.IGNORECASE,
 )
+
+FIXED_SEQUENCE_PATTERN = re.compile(r"^\d{6}")
+
+# A record-version suffix: VMBTL03-R01 -> VMBTL03
+# The DCLGEN name is derived from the BASE record, not the view.
+RECORD_VERSION_SUFFIX_PATTERN = re.compile(r"-R\d+$", flags=re.IGNORECASE)

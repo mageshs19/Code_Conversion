@@ -63,3 +63,8 @@ ENV_REFERENCE_MAX_DEPTH = 5
 # Names whose value must never reach a diagnostic or a console line.
 SENSITIVE_NAMES = (NAME_PASSWORD,)
 MASKED_VALUE = "********"
+SEQUENCE_AREA_WIDTH = 6      # columns 1-6
+INDICATOR_COLUMN = 6         # zero-based index of column 7
+BODY_START_COLUMN = 7        # zero-based index of column 8
+BODY_END_COLUMN = 72         # columns 8-72
+COMMENT_INDICATORS = ("*", "/")
