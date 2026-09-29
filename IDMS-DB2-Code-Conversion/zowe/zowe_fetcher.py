@@ -48,6 +48,8 @@ from zowe.zowe_workspace import (
     program_dir,
     subschema_dir,
 )
+from zowe.zowe_resolver import dclgen_member_for
+from zowe.zowe_rules import DIAG_ELEMENTS_TEMPLATE, DIAG_NO_ELEMENTS_TEMPLATE
 
 logger = logging.getLogger("idms_db2_zowe")
 
@@ -153,21 +155,16 @@ class ZoweFetcher:
         for member in deps.copybooks:
             self._fetch_member(ARTIFACT_COPYBOOK, member, mandatory=False)
 
-        for record, member in zip(deps.records, deps.dclgens):
-            if not member:
-                continue
-            self.diagnostics.append(
-                DIAG_DERIVED_DCLGEN_TEMPLATE.format(record=record, member=member)
-            )
-            self._fetch_member(ARTIFACT_DCLGEN, member, mandatory=False)
-
+        subschema_path = None
         if deps.subschema:
             self.diagnostics.append(
                 DIAG_SUBSCHEMA_DETECTED_TEMPLATE.format(
                     program=deps.program, subschema=deps.subschema
                 )
             )
-            self._fetch_member(ARTIFACT_SUBSCHEMA, deps.subschema, mandatory=False)
+            if self._fetch_member(ARTIFACT_SUBSCHEMA, deps.subschema, False):
+                saved = self.saved.get(ARTIFACT_LABELS[ARTIFACT_SUBSCHEMA], [])
+                subschema_path = saved[-1] if saved else None
         else:
             self.warnings.append(
                 ZOWE_WARNING_MESSAGES["subschema_not_detected"].format(
@@ -175,6 +172,41 @@ class ZoweFetcher:
                 )
             )
 
+        for record in deps.records:
+            for member in self._dclgen_members(record, subschema_path):
+                self.diagnostics.append(
+                    DIAG_DERIVED_DCLGEN_TEMPLATE.format(
+                        record=record, member=member
+                    )
+                )
+                self._fetch_member(ARTIFACT_DCLGEN, member, mandatory=False)
+
+    def _dclgen_members(self, record: str, subschema_path) -> list[str]:
+        from zowe.zowe_subschema import element_records_for
+
+        elements = []
+        if subschema_path is not None:
+            elements = element_records_for(subschema_path, record)
+
+        if elements:
+            self.diagnostics.append(
+                DIAG_ELEMENTS_TEMPLATE.format(
+                    lr=record, elements=", ".join(elements)
+                )
+            )
+        else:
+            self.diagnostics.append(
+                DIAG_NO_ELEMENTS_TEMPLATE.format(lr=record)
+            )
+            elements = [record]
+
+        members: list[str] = []
+        for element in elements:
+            member = dclgen_member_for(element)
+            if member and member not in members:
+                members.append(member)
+        return members
+    
     # ---- all programs ----
     def fetch_all(self) -> dict:
         ensure_workspace()

@@ -119,3 +119,8 @@ ZOWE_WARNING_MESSAGES = {
         "ZOWE_{artifact}_VERIFY_TLS=true once the certificate is trusted."
     ),
 }
+DIAG_ELEMENTS_TEMPLATE = "Logical record {lr}: element record(s) {elements}"
+DIAG_NO_ELEMENTS_TEMPLATE = (
+    "Logical record {lr}: no element records in the subschema. "
+    "DCLGEN falls back to the record name."
+)
