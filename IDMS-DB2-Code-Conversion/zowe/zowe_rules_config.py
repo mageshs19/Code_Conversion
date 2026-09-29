@@ -68,3 +68,36 @@ INDICATOR_COLUMN = 6         # zero-based index of column 7
 BODY_START_COLUMN = 7        # zero-based index of column 8
 BODY_END_COLUMN = 72         # columns 8-72
 COMMENT_INDICATORS = ("*", "/")
+
+# LOCATION: zowe/zowe_rules_config.py
+# ACTION: APPEND at the end of the file
+
+# ---- Subschema DDL vocabulary ----
+# IDMS subschema clause keywords. A line beginning with any of these
+# starts a NEW clause and therefore ends the ELEMENTS name list.
+# These are language keywords, never business names.
+SUBSCHEMA_CLAUSE_KEYWORDS = (
+    "ADD",
+    "MODIFY",
+    "DELETE",
+    "COMMENTS",
+    "COMMENT",
+    "DESCRIPTION",
+    "PATH-GROUP",
+    "SELECT",
+    "WITHIN",
+    "PUBLIC",
+    "SHARE",
+    "REGISTERED",
+    "END",
+)
+
+# Tokens that may appear inside the ELEMENTS clause itself.
+SUBSCHEMA_ELEMENT_NOISE = ("ELEMENTS", "ELEMENT", "ARE", "IS", "NAME")
+
+# Minimum element-name length. Shorter tokens are separators or noise.
+ELEMENT_NAME_MIN_LENGTH = 4
+
+# Optional filter. Set ZOWE_RECORD_PREFIX in .env to accept only records
+# of one application, for example VM. Blank accepts every name.
+NAME_RECORD_PREFIX = "RECORD_PREFIX"

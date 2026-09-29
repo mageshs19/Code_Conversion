@@ -106,3 +106,19 @@ FIXED_SEQUENCE_PATTERN = re.compile(r"^\d{6}")
 # A record-version suffix: VMBTL03-R01 -> VMBTL03
 # The DCLGEN name is derived from the BASE record, not the view.
 RECORD_VERSION_SUFFIX_PATTERN = re.compile(r"-R\d+$", flags=re.IGNORECASE)
+
+# LOCATION: zowe/zowe_patterns.py
+# ACTION: APPEND at the end of the file
+
+# A subschema clause head: the first word of a new DDL clause.
+SUBSCHEMA_CLAUSE_HEAD_PATTERN = re.compile(
+    r"^\s*(?P<head>[A-Z][A-Z-]*)", flags=re.IGNORECASE
+)
+
+# A candidate element-record name token.
+ELEMENT_TOKEN_PATTERN = re.compile(r"[A-Z][A-Z0-9-]*", flags=re.IGNORECASE)
+
+# Characters legal inside a pure name list: names, spaces, commas, period.
+NAME_LIST_ONLY_PATTERN = re.compile(
+    r"^[A-Z0-9 ,\.\-]*$", flags=re.IGNORECASE
+)

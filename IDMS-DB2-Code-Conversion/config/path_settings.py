@@ -27,7 +27,7 @@ C:\S\S-Input
 """
 
 from __future__ import annotations
-
+import os
 from pathlib import Path
 
 
@@ -36,6 +36,14 @@ SRC_DIR = PROJECT_ROOT / "src"
 LOGS_DIR = PROJECT_ROOT / "logs"
 
 DEFAULT_INPUT_DIR = Path(r"C:\S\S-Input")
+"""
+DEFAULT_INPUT_DIR = Path(
+    os.getenv(
+        "IDMS_INPUT_DIR",
+        r"H:\Belfius\IDMS-DB2\Input\Case2-Automation on COBOL IDMS to COBOL DB2 - Code Conversion Phase",
+    )
+)
+"""
 
 DEFAULT_MAPPING_SHEET_DIR = DEFAULT_INPUT_DIR / "Mapping Sheet"
 DEFAULT_RETRIEVAL_MAPPING_SHEET_DIR = DEFAULT_MAPPING_SHEET_DIR / "Retrieval"
