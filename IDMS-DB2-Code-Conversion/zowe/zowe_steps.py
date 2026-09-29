@@ -1,11 +1,5 @@
 # LOCATION: zowe/zowe_steps.py
-# ACTION: REPLACE ENTIRE FILE
-"""Runs the converter and the code review as subprocesses.
-
-A subprocess is used deliberately: each runner calls sys.exit and does its
-own sys.path bootstrap, so importing them would terminate the pipeline or
-corrupt the path.
-"""
+# ACTION: REPLACE the environment and runner-launch section
 
 from __future__ import annotations
 
@@ -13,6 +7,7 @@ import os
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 from zowe.zowe_rules import (
     CONVERT_RUNNER,
@@ -25,46 +20,54 @@ from zowe.zowe_rules import (
     STEP_TIMEOUT_SECONDS,
     UNBUFFERED_KEY,
 )
-from zowe.zowe_workspace import (
-    PROJECT_ROOT,
-    output_dir,
-    review_dir,
-    workspace_root,
-)
+from zowe.zowe_workspace import output_dir, review_dir, workspace_root
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+# urllib3 prints InsecureRequestWarning once per request. Eight fetches
+# produced eight identical blocks in a console the COBOL team reads at a
+# glance. The TLS state is reported ONCE, as a warning row, by the fetch
+# step instead.
+WARNINGS_KEY = "PYTHONWARNINGS"
+WARNINGS_VALUE = "ignore::urllib3.exceptions.InsecureRequestWarning"
 
 
 def subprocess_environment() -> dict[str, str]:
-    """Child environment: workspace as input root, explicit PYTHONPATH."""
+    """The ONLY contract between the pipeline and a runner."""
     env = dict(os.environ)
-
-    entries = [
-        str(PROJECT_ROOT) if entry == "." else str(PROJECT_ROOT / entry)
-        for entry in PYTHONPATH_ENTRIES
-    ]
-    existing = env.get(PYTHONPATH_KEY, "")
-    if existing:
-        entries.append(existing)
-
-    env[PYTHONPATH_KEY] = os.pathsep.join(entries)
     env[IDMS_INPUT_DIR_KEY] = str(workspace_root())
+    env[PYTHONPATH_KEY] = os.pathsep.join(
+        str(PROJECT_ROOT if entry == "." else PROJECT_ROOT / entry)
+        for entry in PYTHONPATH_ENTRIES
+    )
     env[UNBUFFERED_KEY] = "1"
+    env.setdefault(WARNINGS_KEY, WARNINGS_VALUE)
     return env
 
 
-def _run(command: list[str]) -> tuple[int, float]:
+def _run(command: list[str], indent: str = "    ") -> tuple[int, float]:
+    """Run one runner, echoing its output under the step indent."""
     started = time.perf_counter()
+    process = subprocess.Popen(
+        command,
+        cwd=str(PROJECT_ROOT),
+        env=subprocess_environment(),
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
     try:
-        completed = subprocess.run(
-            command,
-            cwd=str(PROJECT_ROOT),
-            env=subprocess_environment(),
-            timeout=STEP_TIMEOUT_SECONDS,
-            check=False,
-        )
-        code = completed.returncode
+        for line in process.stdout:
+            stripped = line.rstrip()
+            if stripped:
+                print(f"{indent}{stripped}")
+        process.wait(timeout=STEP_TIMEOUT_SECONDS)
     except subprocess.TimeoutExpired:
-        code = 2
-    return code, time.perf_counter() - started
+        process.kill()
+        return 2, time.perf_counter() - started
+    return process.returncode, time.perf_counter() - started
 
 
 def run_convert() -> tuple[int, float]:
@@ -80,16 +83,11 @@ def run_review(quiet: bool = False) -> tuple[int, float]:
     if not runner.is_file():
         print(RUNNER_MISSING_TEMPLATE.format(path=runner))
         return 2, 0.0
-
     command = [
-        sys.executable,
-        str(runner),
-        "--folder",
-        str(output_dir()),
-        "--kind",
-        REVIEW_KIND,
-        "--report",
-        str(review_dir()),
+        sys.executable, str(runner),
+        "--folder", str(output_dir()),
+        "--kind", REVIEW_KIND,
+        "--report", str(review_dir()),
     ]
     if quiet:
         command.append("--quiet")

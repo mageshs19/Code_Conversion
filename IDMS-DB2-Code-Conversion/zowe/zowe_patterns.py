@@ -122,3 +122,39 @@ ELEMENT_TOKEN_PATTERN = re.compile(r"[A-Z][A-Z0-9-]*", flags=re.IGNORECASE)
 NAME_LIST_ONLY_PATTERN = re.compile(
     r"^[A-Z0-9 ,\.\-]*$", flags=re.IGNORECASE
 )
+
+# LOCATION: zowe/zowe_patterns.py
+# ACTION: APPEND at the end of the file
+#         (delete any earlier partial copies of these six names first)
+
+# =====================================================================
+# SUBSCHEMA - ADD LOGICAL RECORD / ELEMENTS ARE
+# =====================================================================
+
+# ADD LOGICAL RECORD [NAME IS] <logical-record>
+LOGICAL_RECORD_PATTERN = re.compile(
+    r"^\s*ADD\s+LOGICAL\s+RECORD\s+(?:NAME\s+IS\s+)?"
+    r"(?P<lr>[A-Z0-9][A-Z0-9-]*)",
+    flags=re.IGNORECASE,
+)
+
+# ELEMENTS ARE <name> <name> ...
+ELEMENTS_ARE_PATTERN = re.compile(
+    r"^\s*ELEMENTS?\s+ARE\b(?P<rest>.*)$",
+    flags=re.IGNORECASE,
+)
+
+# A clause terminated by a lone period.
+BLOCK_END_PATTERN = re.compile(r"^\s*\.\s*$")
+
+# The first word of a line: used to detect a new DDL clause.
+SUBSCHEMA_CLAUSE_HEAD_PATTERN = re.compile(
+    r"^\s*(?P<head>[A-Z][A-Z-]*)",
+    flags=re.IGNORECASE,
+)
+
+# A candidate element-record name token.
+ELEMENT_TOKEN_PATTERN = re.compile(r"[A-Z][A-Z0-9-]*", flags=re.IGNORECASE)
+
+# A pure name list: names plus list separators only. Prose fails this.
+NAME_LIST_ONLY_PATTERN = re.compile(r"^[A-Z0-9 ,\.\-]*$", flags=re.IGNORECASE)

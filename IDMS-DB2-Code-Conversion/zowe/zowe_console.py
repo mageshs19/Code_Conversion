@@ -1,18 +1,33 @@
 # LOCATION: zowe/zowe_console.py
 # ACTION: REPLACE ENTIRE FILE
-"""Console rendering for the pipeline. Printing and logging only."""
+"""Console rendering for the pipeline. Printing and logging only.
+
+Presentation matches the batch console the COBOL team already reads:
+counter, padded label, progress bar, padded status, seconds. Padding is
+applied BEFORE colouring so escape codes never affect alignment.
+"""
 
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from datetime import datetime
 
-from zowe.zowe_env import mask, setting_source
 from zowe.zowe_rules import (
-    NAME_HOST,
-    NAME_PASSWORD,
-    NAME_USER,
+    BAR_EMPTY_ASCII,
+    BAR_EMPTY_UNICODE,
+    BAR_FILLED_ASCII,
+    BAR_FILLED_UNICODE,
+    COLOUR_DIM,
+    COLOUR_GREEN,
+    COLOUR_RED,
+    COLOUR_RESET,
+    COLOUR_YELLOW,
+    LOG_DATE_FORMAT,
+    LOG_FORMAT,
+    LOGGER_NAME,
+    NO_COLOUR_ENV,
     STATUS_FAILED,
     STATUS_NOTHING,
     STATUS_OK,
@@ -20,20 +35,53 @@ from zowe.zowe_rules import (
 )
 
 WIDTH = 80
-INNER = WIDTH - 4
 HEAVY = "=" * WIDTH
-LIGHT = "-" * INNER
+LIGHT = "-" * (WIDTH - 4)
 INDENT = "  "
-
 BAR_WIDTH = 20
-BAR_FULL = "#"
+LABEL_WIDTH = 22
+STATUS_WIDTH = 9
 STAMP_FORMAT = "%d-%m-%Y %H:%M:%S"
 
-LOG_FORMAT = "%(asctime)s | %(levelname)s | %(name)s | %(message)s"
-LOG_DATE_FORMAT = "%d-%m-%Y %H:%M:%S"
-LOGGER_NAME = "idms_db2_zowe"
+STATUS_COLOURS = {
+    STATUS_OK: COLOUR_GREEN,
+    STATUS_FAILED: COLOUR_RED,
+    STATUS_SKIPPED: COLOUR_DIM,
+    STATUS_NOTHING: COLOUR_YELLOW,
+}
 
-_STATUS_WIDTH = 11
+
+def _colour_enabled() -> bool:
+    if os.environ.get(NO_COLOUR_ENV):
+        return False
+    try:
+        return bool(sys.stdout.isatty())
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _glyphs() -> tuple[str, str]:
+    """Block glyphs when the code page can encode them, else ASCII."""
+    encoding = getattr(sys.stdout, "encoding", "") or ""
+    try:
+        BAR_FILLED_UNICODE.encode(encoding)
+        return BAR_FILLED_UNICODE, BAR_EMPTY_UNICODE
+    except (LookupError, UnicodeEncodeError, AttributeError):
+        return BAR_FILLED_ASCII, BAR_EMPTY_ASCII
+
+
+FILLED, EMPTY = _glyphs()
+COLOUR = _colour_enabled()
+
+
+def _paint(text: str, code: str) -> str:
+    if not COLOUR or not code:
+        return text
+    return f"{code}{text}{COLOUR_RESET}"
+
+
+def _status_cell(status: str) -> str:
+    return _paint(str(status).ljust(STATUS_WIDTH), STATUS_COLOURS.get(status, ""))
 
 
 def banner(title: str) -> None:
@@ -44,16 +92,14 @@ def banner(title: str) -> None:
     print(HEAVY)
 
 
-def footer() -> None:
-    print("")
-    print(f"{INDENT}Finished {datetime.now().strftime(STAMP_FORMAT)}")
-    print(HEAVY)
-
-
 def section(title: str) -> None:
     print("")
     print(f"{INDENT}{title.upper()}")
     print(f"{INDENT}{LIGHT}")
+
+
+def header(title: str) -> None:
+    section(title)
 
 
 def row(label: str, value) -> None:
@@ -67,25 +113,47 @@ def bullets(lines) -> None:
 
 def warnings(lines) -> None:
     for line in lines:
-        print(f"{INDENT}  ! {line}")
+        print(f"{INDENT}! {line}")
+
+
+def step_start(index: int, total: int, label: str) -> None:
+    print("")
+    print(f"{INDENT}[{index}/{total}] {label.upper()}")
+    print(f"{INDENT}{LIGHT}")
 
 
 def step_line(index: int, total: int, label: str, status: str, seconds: float) -> None:
-    bar = BAR_FULL * BAR_WIDTH
+    filled = BAR_WIDTH if status == STATUS_OK else BAR_WIDTH // 2
+    bar = FILLED * filled + EMPTY * (BAR_WIDTH - filled)
     print(
-        f"{INDENT}[{index}/{total}] {label:<22}"
-        f"[{bar}] {status:<{_STATUS_WIDTH}}{seconds:>6.1f}s"
+        f"{INDENT}[{index}/{total}] {label:<{LABEL_WIDTH}}"
+        f"[{bar}] {_status_cell(status)}{seconds:>7.1f}s"
     )
 
 
-def verdict(text: str) -> None:
+def summary(results) -> None:
+    section("summary")
+    print(f"{INDENT}{'Step':<12}{'Status':<14}{'Seconds':>9}")
+    print(f"{INDENT}{LIGHT}")
+    total = 0.0
+    failures = 0
+    for result in results:
+        print(
+            f"{INDENT}{result.step:<12}"
+            f"{_status_cell(result.status):<14}"
+            f"{result.seconds:>9.1f}"
+        )
+        total += result.seconds
+        if result.status == STATUS_FAILED:
+            failures += 1
+    print(f"{INDENT}{LIGHT}")
+    print(f"{INDENT}Total {total:.1f}s     Failures {failures}")
+
+
+def verdict(text: str, failed: bool = False) -> None:
     print("")
-    print(f"{INDENT}{text}")
-
-
-def header(title: str) -> None:
-    """Backward compatible with the earlier plain header."""
-    section(title)
+    print(f"{INDENT}{_paint(text, COLOUR_RED if failed else COLOUR_GREEN)}")
+    print(HEAVY)
 
 
 def configure_logging(verbose: bool) -> None:
@@ -102,29 +170,3 @@ def configure_logging(verbose: bool) -> None:
 
 def logger() -> logging.Logger:
     return logging.getLogger(LOGGER_NAME)
-
-
-def credentials(artifact: str, connection) -> None:
-    row("Host", f"{connection.host or '(not set)'}:{connection.port}")
-    row("", f"from {setting_source(artifact, NAME_HOST)}")
-    row("User", mask(NAME_USER, connection.user))
-    row("", f"from {setting_source(artifact, NAME_USER)}")
-    row("Password", mask(NAME_PASSWORD, connection.password))
-    row("Verify TLS", connection.verify_tls)
-
-
-def summary(results) -> None:
-    section("summary")
-    print(f"{INDENT}{'Step':<12}{'Status':<14}{'Seconds':>9}")
-    print(f"{INDENT}{LIGHT}")
-    total = 0.0
-    failures = 0
-    for result in results:
-        print(
-            f"{INDENT}{result.step:<12}{result.status:<14}{result.seconds:>9.1f}"
-        )
-        total += result.seconds
-        if result.status == STATUS_FAILED:
-            failures += 1
-    print(f"{INDENT}{LIGHT}")
-    print(f"{INDENT}Total {total:.1f}s     Failures {failures}")
