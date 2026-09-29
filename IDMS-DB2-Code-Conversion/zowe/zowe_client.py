@@ -1,6 +1,14 @@
 # LOCATION: zowe/zowe_client.py
-# ACTION: CREATE NEW FILE
-"""REST Files calls. One client instance per connection."""
+# ACTION: REPLACE ENTIRE FILE
+"""REST Files calls. One client instance per connection.
+
+LOOKUP POLICY
+
+A member is located by PROBING it directly, never by listing the whole
+library. A library larger than the z/OSMF item limit silently truncates
+its member list, and a truncated list looks exactly like a missing
+member. list_members is kept for diagnostics only.
+"""
 
 from __future__ import annotations
 
@@ -17,9 +25,12 @@ from zowe.zowe_patterns import (
 from zowe.zowe_rules import (
     CSRF_HEADER,
     DATA_TYPE_HEADER,
+    HTTP_OK,
     LOG_CONNECTION,
     LOG_DOWNLOAD,
+    LOG_MEMBER_COUNT,
     LOG_UPLOAD,
+    MAX_ITEMS_HEADER,
     MEMBER_NAME_MAX_LENGTH,
     TEXT_CONTENT_TYPE,
     ZOWE_ERROR_MESSAGES,
@@ -85,24 +96,8 @@ class ZoweClient:
     def _members_url(self, dataset: str) -> str:
         return f"{self.connection.base_url}/{dataset}/member"
 
-    # ---- operations ----
-    def list_members(self, dataset: str) -> list[str]:
-        dataset = self.library_name(dataset)
-        response = requests.get(
-            self._members_url(dataset),
-            headers=CSRF_HEADER,
-            auth=self._auth(),
-            verify=self.connection.verify_tls,
-            timeout=self.connection.timeout_seconds,
-        )
-        response.raise_for_status()
-        items = response.json().get("items", []) or []
-        members = sorted(item["member"] for item in items if item.get("member"))
-        if not members:
-            raise ValueError(ZOWE_ERROR_MESSAGES["no_members"].format(dataset=dataset))
-        return members
-
-    def download_member(self, dataset: str, member: str) -> bytes:
+    def _get_member(self, dataset: str, member: str) -> requests.Response:
+        """One GET on a member. Status is never raised on."""
         dataset = self.library_name(dataset)
         response = requests.get(
             self._member_url(dataset, member),
@@ -112,8 +107,45 @@ class ZoweClient:
             timeout=self.connection.timeout_seconds,
         )
         logger.info(LOG_DOWNLOAD, dataset, member, response.status_code)
+        return response
+
+    # ---- lookup ----
+    def member_exists(self, dataset: str, member: str) -> tuple[bool, int]:
+        """Probe ONE member. Returns (found, http_status)."""
+        response = self._get_member(dataset, member)
+        return response.status_code == HTTP_OK, response.status_code
+
+    def fetch_member(self, dataset: str, member: str) -> tuple[bytes, int]:
+        """Content and status. Empty bytes when the member is absent."""
+        response = self._get_member(dataset, member)
+        if response.status_code == HTTP_OK:
+            return response.content, HTTP_OK
+        return b"", response.status_code
+
+    # ---- operations ----
+    def download_member(self, dataset: str, member: str) -> bytes:
+        """Strict download. Raises on any non-200 status."""
+        response = self._get_member(dataset, member)
         response.raise_for_status()
         return response.content
+
+    def list_members(self, dataset: str) -> list[str]:
+        """Diagnostic only. Never used to decide whether a member exists."""
+        dataset = self.library_name(dataset)
+        response = requests.get(
+            self._members_url(dataset),
+            headers={**CSRF_HEADER, **MAX_ITEMS_HEADER},
+            auth=self._auth(),
+            verify=self.connection.verify_tls,
+            timeout=self.connection.timeout_seconds,
+        )
+        response.raise_for_status()
+        items = response.json().get("items", []) or []
+        members = sorted(item["member"] for item in items if item.get("member"))
+        logger.info(LOG_MEMBER_COUNT, self.label, len(members))
+        if not members:
+            raise ValueError(ZOWE_ERROR_MESSAGES["no_members"].format(dataset=dataset))
+        return members
 
     def upload_member(self, dataset: str, member: str, content: bytes) -> int:
         dataset = self.library_name(dataset)

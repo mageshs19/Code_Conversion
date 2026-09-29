@@ -3,6 +3,10 @@
 """Member lookup across an ordered library list.
 
 A member is taken from the FIRST library that holds it.
+
+The lookup PROBES the member directly rather than listing the library.
+A library larger than the z/OSMF item limit truncates its member list,
+and a truncated list is indistinguishable from a missing member.
 """
 
 from __future__ import annotations
@@ -38,13 +42,14 @@ def libraries_for(artifact: str) -> list[str]:
 
 @dataclass
 class LibrarySearch:
-    """Searches one artifact's libraries. Caches each library listing."""
+    """Searches one artifact's libraries, member by member."""
 
     artifact: str
     label: str = ""
     libraries: list[str] = field(default_factory=list)
     _client: ZoweClient | None = None
-    _members: dict[str, set[str]] = field(default_factory=dict)
+    # member -> {dataset: http status} for the last failed search
+    attempts: dict[str, dict[str, int]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self.label = self.label or ARTIFACT_LABELS[self.artifact]
@@ -58,33 +63,59 @@ class LibrarySearch:
             self._client = ZoweClient(connection, self.artifact, self.label)
         return self._client
 
-    def _members_of(self, dataset: str) -> set[str]:
-        """Member names of one library. A failed listing is an empty set."""
-        if dataset in self._members:
-            return self._members[dataset]
-
-        try:
-            names = {m.upper() for m in self.client.list_members(dataset)}
-        except (requests.HTTPError, requests.RequestException, ValueError) as exc:
-            logger.warning("%s listing failed for %s: %s", self.label, dataset, exc)
-            names = set()
-
-        self._members[dataset] = names
-        return names
-
     def locate(self, member: str) -> str:
         """First library holding the member, or an empty string."""
         wanted = str(member or "").strip().upper()
         if not wanted:
             return ""
+
+        statuses: dict[str, int] = {}
         for dataset in self.libraries:
-            if wanted in self._members_of(dataset):
+            try:
+                found, status = self.client.member_exists(dataset, wanted)
+            except (requests.RequestException, ValueError) as exc:
+                logger.warning("%s probe failed on %s: %s", self.label, dataset, exc)
+                statuses[dataset] = -1
+                continue
+
+            statuses[dataset] = status
+            if found:
                 return dataset
+
+        self.attempts[wanted] = statuses
         return ""
 
     def download(self, member: str) -> tuple[str, bytes]:
         """(dataset, content). Dataset is empty when not found anywhere."""
-        dataset = self.locate(member)
-        if not dataset:
+        wanted = str(member or "").strip().upper()
+        if not wanted:
             return "", b""
-        return dataset, self.client.download_member(dataset, member)
+
+        statuses: dict[str, int] = {}
+        for dataset in self.libraries:
+            try:
+                content, status = self.client.fetch_member(dataset, wanted)
+            except (requests.RequestException, ValueError) as exc:
+                logger.warning("%s fetch failed on %s: %s", self.label, dataset, exc)
+                statuses[dataset] = -1
+                continue
+
+            statuses[dataset] = status
+            if status == 200:
+                return dataset, content
+
+        self.attempts[wanted] = statuses
+        return "", b""
+
+    def why_not_found(self, member: str) -> str:
+        """Per-library HTTP status for the last failed lookup."""
+        statuses = self.attempts.get(str(member or "").strip().upper(), {})
+        if not statuses:
+            return ", ".join(self.libraries)
+        return ", ".join(
+            f"{dataset} (HTTP {status})" for dataset, status in statuses.items()
+        )
+
+    def list_members(self, dataset: str) -> list[str]:
+        """Diagnostic only. Never used for lookup."""
+        return self.client.list_members(expand(dataset))
